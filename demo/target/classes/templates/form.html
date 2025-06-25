@@ -4,75 +4,186 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generatore Biglietto Aereo</title>
+    
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="/webjars/bootstrap/5.3.0/css/bootstrap.min.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Stili personalizzati -->
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
-    <div class="container">
-        <h1>Genera Biglietto Aereo</h1>
-        <form method="post" action="/generate-pdf" enctype="multipart/form-data" id="ticketForm">
-            <div class="form-group">
-                <label for="passengers">Passeggeri (separati da virgola):</label>
-                <input type="text" id="passengers" name="passengers" required placeholder="Mario Rossi, Luigi Bianchi">
-            </div>
-            
-            <div class="form-group">
-                <label for="route">Tratta (Es: ROMA FCO - NEW YORK JFK):</label>
-                <input type="text" id="route" name="route" required placeholder="Milano MAL - Parigi CDG">
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="departureTime">Orario Partenza:</label>
-                    <input type="datetime-local" id="departureTime" name="departureTime" required>
+<body id="airline-theme">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-lg">
+                    <div class="card-header">
+                        <h1 class="card-title text-center mb-0">Genera Biglietto Aereo</h1>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" action="/generate-pdf" class="needs-validation" id="ticketForm" novalidate>
+                            <!-- Sezione Passeggeri -->
+                            <div class="mb-4 border p-3 rounded bg-light">
+                                <h3 class="mb-3"><i class="fas fa-users me-2"></i> Passeggeri</h3>
+                                
+                                <div id="passengers-container">
+                                    <!-- Template passeggero -->
+                                    <div class="passenger-template border-bottom pb-3 mb-3" id="passenger-0">
+                                        <div class="row g-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Tipo</label>
+                                                <select class="form-select passenger-type" name="passengerType" required>
+                                                    <option value="adulto">Adulti</option>
+                                                    <option value="ragazzo">Ragazzo (12-17)</option>
+                                                    <option value="infant">Infant (0-2)</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="col-md-5">
+                                                <label class="form-label">Nome e Cognome</label>
+                                                <input type="text" class="form-control" name="passengerName" required>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input hand-luggage" type="checkbox" name="handLuggage">
+                                                    <label class="form-check-label">Bagaglio a mano</label>
+                                                </div>
+                                                
+                                                <div class="hand-luggage-details mt-2 ms-4" style="display: none;">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">KG</span>
+                                                        <input type="number" class="form-control" name="handLuggageKg" min="0" max="20" value="8">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4 offset-md-8">
+                                                <div class="form-check">
+                                                    <input class="form-check-input checked-luggage" type="checkbox" name="checkedLuggage">
+                                                    <label class="form-check-label">Bagaglio in stiva</label>
+                                                </div>
+                                                
+                                                <div class="checked-luggage-details mt-2 ms-4" style="display: none;">
+                                                    <div class="row g-2">
+                                                        <div class="col-6">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">N°</span>
+                                                                <input type="number" class="form-control" name="checkedLuggageCount" min="0" max="5" value="1">
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">KG</span>
+                                                                <input type="number" class="form-control" name="checkedLuggageKg" min="0" max="50" value="23">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button type="button" id="add-passenger" class="btn btn-sm btn-outline-primary mt-2">
+                                    <i class="fas fa-plus me-1"></i> Aggiungi Passeggero
+                                </button>
+                            </div>
+                            
+                            <!-- Informazioni Volo -->
+                            <div class="mb-4 border p-3 rounded">
+                                <h3 class="mb-3"><i class="fas fa-plane me-2"></i> Informazioni Volo</h3>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Tratta</label>
+                                        <input type="text" class="form-control" name="route" required placeholder="Milano MAL - Parigi CDG">
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label class="form-label">PNR (Passenger Name Record)</label>
+                                        <input type="text" class="form-control" name="pnr" required placeholder="Es: ABC123">
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label class="form-label">Partenza</label>
+                                        <input type="datetime-local" class="form-control" name="departureTime" required>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label class="form-label">Arrivo</label>
+                                        <input type="datetime-local" class="form-control" name="arrivalTime" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Compagnia Aerea -->
+                            <div class="mb-4 border p-3 rounded">
+                                <h3 class="mb-3"><i class="fas fa-building me-2"></i> Compagnia Aerea</h3>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Compagnia</label>
+                                        <select class="form-select" id="airlineCode" name="airlineCode" required>
+                                            <option value="" disabled selected>Seleziona una compagnia</option>
+                                            <option th:each="airline : ${airlines}" 
+                                                    th:value="${airline.code}"
+                                                    th:data-logo="${airline.logoPath}"
+                                                    th:data-rules="${airline.rules}"
+                                                    th:data-primary="${airline.primaryColor}"
+                                                    th:data-secondary="${airline.secondaryColor}"
+                                                    th:text="${airline.name}"></option>
+                                        </select>
+                                        
+                                        <!-- Anteprima logo compagnia -->
+                                        <div class="mt-2" id="airline-logo-preview" style="display: none;">
+                                            <div class="d-flex align-items-center">
+                                                <img src="" class="preview-logo me-3">
+                                                <span class="small text-muted">Logo compagnia selezionata</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label class="form-label">Prezzo Totale (€)</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">€</span>
+                                            <input type="number" class="form-control" name="price" step="0.01" min="0" required placeholder="150.00">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <label class="form-label">Regole della Compagnia</label>
+                                        <textarea class="form-control" id="rules" name="rules" rows="6" required></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Logo Agenzia -->
+                            <div class="text-center mb-4 p-3 border rounded bg-light">
+                                <h5 class="mb-3"><i class="fas fa-camera me-2"></i> Logo Agenzia</h5>
+                                <div class="d-flex justify-content-center">
+                                    <img th:src="@{/logos/agency-logo.png}" class="preview-logo">
+                                </div>
+                                <small class="text-muted">Logo preimpostato per tutti i biglietti</small>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-lg w-100 py-3 fw-bold">
+                                <i class="fas fa-file-pdf me-2"></i> Genera PDF
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="arrivalTime">Orario Arrivo:</label>
-                    <input type="datetime-local" id="arrivalTime" name="arrivalTime" required>
-                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="airline">Compagnia Aerea:</label>
-                <input type="text" id="airline" name="airline" required placeholder="Air Italy">
-            </div>
-            
-            <div class="form-group">
-                <label for="price">Prezzo (€):</label>
-                <input type="number" id="price" name="price" step="0.01" min="0" required placeholder="150.00">
-            </div>
-            
-            <div class="form-group">
-                <label for="rules">Regole della Compagnia:</label>
-                <textarea id="rules" name="rules" rows="4" required placeholder="Bagaglio a mano incluso..."></textarea>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="airlineLogo">Logo Compagnia Aerea:</label>
-                    <input type="file" id="airlineLogo" name="airlineLogo" accept="image/*" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="agencyLogo">Logo Agenzia Viaggi:</label>
-                    <input type="file" id="agencyLogo" name="agencyLogo" accept="image/*" required>
-                </div>
-            </div>
-            
-            <button type="submit">Genera PDF</button>
-        </form>
+        </div>
     </div>
 
-    <script>
-        // Precompila la data corrente per comodità
-        document.addEventListener('DOMContentLoaded', function() {
-            const now = new Date();
-            const timezoneOffset = now.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(now - timezoneOffset)).toISOString().slice(0, 16);
-            
-            document.getElementById('departureTime').value = localISOTime;
-            document.getElementById('arrivalTime').value = localISOTime;
-        });
-    </script>
+    <!-- Bootstrap JS & Popper -->
+    <script src="/webjars/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script personalizzato -->
+    <script src="/js/script.js"></script>
 </body>
 </html>
