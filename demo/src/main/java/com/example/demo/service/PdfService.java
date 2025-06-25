@@ -10,10 +10,12 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -25,7 +27,7 @@ import static org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.*;
 public class PdfService {
 
     public static final Map<String, Airline> AIRLINES = new HashMap<>();
-    private static final String AGENCY_LOGO_PATH = "static/logos/agency-logo.png";
+    private static final String AGENCY_LOGO_NAME = "agency-logo.png";
     private static final float MARGIN = 50;
     private static final float PAGE_WIDTH = PDRectangle.A4.getWidth();
     private static final float RULES_WIDTH = PAGE_WIDTH - 2 * MARGIN;
@@ -35,17 +37,21 @@ public class PdfService {
     private static final PDFont FONT_NORMAL = new PDType1Font(HELVETICA);
     private static final PDFont FONT_ITALIC = new PDType1Font(HELVETICA_OBLIQUE);
 
+    // Percorso configurabile per i loghi
+    @Value("${app.logos.path:classpath:static/logos/}")
+    private String logosPath;
+
     static {
         // Initialize airlines with rules and colors
-        AIRLINES.put("AZ", new Airline("AZ", "Alitalia", "static/logos/alitalia.png",
+        AIRLINES.put("AZ", new Airline("AZ", "Alitalia", "alitalia.png",
                 "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione:\nI biglietti non sono rimborsabili tranne nei casi in cui la compagnia aerea annulli la prenotazione o sposti l'orario di partenza in modo significativo.\n\nCambi NOME:\nPermesso di cambio nome fino a 24 ore prima della partenza.\n\nDocumenti:\nAssicurati di avere documenti di identità validi per tutti i paesi che visiterai.",
                 "#0066CC", "#FFFFFF"));
 
-        AIRLINES.put("LH", new Airline("LH", "Lufthansa", "static/logos/lufthansa.png",
+        AIRLINES.put("LH", new Airline("LH", "Lufthansa", "lufthansa.png",
                 "Bagaglio a mano incluso: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione:\nRimborso completo fino a 48 ore prima del volo.\n\nCambi NOME:\nModifiche consentite con penale di 50€.\n\nDocumenti:\nPassaporto obbligatorio per voli extra-Schengen.",
                 "#001E49", "#D80621"));
 
-        AIRLINES.put("AF", new Airline("AF", "Air France", "static/logos/airfrance.png",
+        AIRLINES.put("AF", new Airline("AF", "Air France", "airfrance.png",
                 "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali\n\nRichieste di cancellazione:\nPenale del 20% per cancellazioni entro 7 giorni.\n\nCambi NOME:\nConsentito solo per errori di battitura entro 24 ore.\n\nDocumenti:\nVisto richiesto per alcune destinazioni, verificare prima della partenza.",
                 "#002395", "#CE1126"));
     }
@@ -55,7 +61,6 @@ public class PdfService {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
 
-            // Dichiarare la variabile y fuori dal blocco try
             float finalYPosition = 0;
             float pageHeight = page.getMediaBox().getHeight();
 
@@ -66,32 +71,26 @@ public class PdfService {
                 // Airline Logo (top left)
                 Airline airline = AIRLINES.get(ticket.getAirlineCode());
                 if (airline != null) {
-                    try (InputStream is = new ClassPathResource(airline.getLogoPath()).getInputStream()) {
-                        PDImageXObject airlineImg = PDImageXObject.createFromByteArray(
-                                document, is.readAllBytes(), airline.getCode());
-
+                    try {
+                        PDImageXObject airlineImg = loadLogo(document, airline.getLogoPath());
                         float aspectRatio = (float) airlineImg.getWidth() / airlineImg.getHeight();
                         float imgHeight = 60;
                         float imgWidth = imgHeight * aspectRatio;
                         contentStream.drawImage(airlineImg, MARGIN, y - imgHeight, imgWidth, imgHeight);
                     } catch (Exception e) {
-                        // Log error but continue without a logo
                         System.err.println("Error loading airline logo: " + e.getMessage());
                     }
                 }
 
                 // Agency Logo (top right)
-                try (InputStream is = new ClassPathResource(AGENCY_LOGO_PATH).getInputStream()) {
-                    PDImageXObject agencyImg = PDImageXObject.createFromByteArray(
-                            document, is.readAllBytes(), "agency");
-
+                try {
+                    PDImageXObject agencyImg = loadLogo(document, AGENCY_LOGO_NAME);
                     float aspectRatio = (float) agencyImg.getWidth() / agencyImg.getHeight();
                     float imgHeight = 50;
                     float imgWidth = imgHeight * aspectRatio;
                     float x = PAGE_WIDTH - MARGIN - imgWidth;
                     contentStream.drawImage(agencyImg, x, y - imgHeight, imgWidth, imgHeight);
                 } catch (Exception e) {
-                    // Log error but continue without logo
                     System.err.println("Error loading agency logo: " + e.getMessage());
                 }
 
@@ -166,22 +165,20 @@ public class PdfService {
                 drawText(contentStream, "PREZZO TOTALE: €" + String.format("%.2f", ticket.getPrice()), MARGIN, y);
                 y -= 30;
 
-                // Salvare la posizione Y finale
+                // Save final Y position
                 finalYPosition = y;
-            }  // End of first content stream
+            }
 
             // Check if we need a new page for rules
             PDPage rulesPage = page;
             boolean newPageCreated = false;
 
-            // Usiamo la variabile finalYPosition invece di y
             if (finalYPosition < 150) {
                 rulesPage = new PDPage(PDRectangle.A4);
                 document.addPage(rulesPage);
                 newPageCreated = true;
             }
 
-            // Second content stream for rules (same page or new page)
             try (PDPageContentStream rulesContentStream = new PDPageContentStream(
                     document, rulesPage, PDPageContentStream.AppendMode.APPEND,
                     true)) {
@@ -208,6 +205,28 @@ public class PdfService {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             document.save(byteArrayOutputStream);
             return byteArrayOutputStream.toByteArray();
+        }
+    }
+
+    private PDImageXObject loadLogo(PDDocument document, String logoName) throws IOException {
+        // Prima prova a caricare dal percorso esterno
+        if (logosPath.startsWith("classpath:")) {
+            // Caricamento da classpath (interno al JAR)
+            String classpathPath = logosPath.substring(10) + logoName;
+            try (InputStream is = new ClassPathResource(classpathPath).getInputStream()) {
+                return PDImageXObject.createFromByteArray(document, is.readAllBytes(), logoName);
+            }
+        } else {
+            // Caricamento da filesystem esterno
+            File logoFile = new File(logosPath, logoName);
+            if (logoFile.exists()) {
+                return PDImageXObject.createFromFile(logoFile.getAbsolutePath(), document);
+            } else {
+                // Fallback al classpath
+                try (InputStream is = new ClassPathResource("static/logos/" + logoName).getInputStream()) {
+                    return PDImageXObject.createFromByteArray(document, is.readAllBytes(), logoName);
+                }
+            }
         }
     }
 
@@ -258,7 +277,7 @@ public class PdfService {
                     currentLine = new StringBuilder(testLine);
                 }
 
-                // Draw the last word
+                // Draw last word
                 if (i == words.length - 1) {
                     drawText(contentStream, currentLine.toString(), x, y);
                     y -= leading;
