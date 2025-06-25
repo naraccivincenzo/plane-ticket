@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generatore Biglietto Aereo</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Genera Biglietto Aereo</h1>
+        <form method="post" action="/generate-pdf" enctype="multipart/form-data" id="ticketForm">
+            <div class="form-group">
+                <label for="passengers">Passeggeri (separati da virgola):</label>
+                <input type="text" id="passengers" name="passengers" required placeholder="Mario Rossi, Luigi Bianchi">
+            </div>
+            
+            <div class="form-group">
+                <label for="route">Tratta (Es: ROMA FCO - NEW YORK JFK):</label>
+                <input type="text" id="route" name="route" required placeholder="Milano MAL - Parigi CDG">
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="departureTime">Orario Partenza:</label>
+                    <input type="datetime-local" id="departureTime" name="departureTime" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="arrivalTime">Orario Arrivo:</label>
+                    <input type="datetime-local" id="arrivalTime" name="arrivalTime" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="airline">Compagnia Aerea:</label>
+                <input type="text" id="airline" name="airline" required placeholder="Air Italy">
+            </div>
+            
+            <div class="form-group">
+                <label for="price">Prezzo (€):</label>
+                <input type="number" id="price" name="price" step="0.01" min="0" required placeholder="150.00">
+            </div>
+            
+            <div class="form-group">
+                <label for="rules">Regole della Compagnia:</label>
+                <textarea id="rules" name="rules" rows="4" required placeholder="Bagaglio a mano incluso..."></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="airlineLogo">Logo Compagnia Aerea:</label>
+                    <input type="file" id="airlineLogo" name="airlineLogo" accept="image/*" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="agencyLogo">Logo Agenzia Viaggi:</label>
+                    <input type="file" id="agencyLogo" name="agencyLogo" accept="image/*" required>
+                </div>
+            </div>
+            
+            <button type="submit">Genera PDF</button>
+        </form>
+    </div>
+
+    <script>
+        // Precompila la data corrente per comodità
+        document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(now - timezoneOffset)).toISOString().slice(0, 16);
+            
+            document.getElementById('departureTime').value = localISOTime;
+            document.getElementById('arrivalTime').value = localISOTime;
+        });
+    </script>
+</body>
+</html>
