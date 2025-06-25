@@ -7,6 +7,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.core.io.ClassPathResource;
@@ -16,217 +17,261 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.*;
 
 @Service
 public class PdfService {
-    
-    private static final Map<String, Airline> AIRLINES = new HashMap<>();
+
+    public static final Map<String, Airline> AIRLINES = new HashMap<>();
     private static final String AGENCY_LOGO_PATH = "static/logos/agency-logo.png";
-    
+    private static final float MARGIN = 50;
+    private static final float PAGE_WIDTH = PDRectangle.A4.getWidth();
+    private static final float RULES_WIDTH = PAGE_WIDTH - 2 * MARGIN;
+
+    // Define static fonts for consistent usage
+    private static final PDFont FONT_BOLD = new PDType1Font(HELVETICA_BOLD);
+    private static final PDFont FONT_NORMAL = new PDType1Font(HELVETICA);
+    private static final PDFont FONT_ITALIC = new PDType1Font(HELVETICA_OBLIQUE);
+
     static {
-        // Inizializza le compagnie aeree con regole e colori
-        AIRLINES.put("AZ", new Airline("AZ", "Alitalia", "static/logos/alitalia.png", 
-            "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione:\nI biglietti non sono rimborsabili tranne nei casi in cui la compagnia aerea annulli la prenotazione o sposti l'orario di partenza in modo significativo.\n\nCambi NOME:\nPermesso di cambio nome fino a 24 ore prima della partenza.\n\nDocumenti:\nAssicurati di avere documenti di identità validi per tutti i paesi che visiterai.",
-            "#0066CC", "#FFFFFF"));
-        
-        AIRLINES.put("LH", new Airline("LH", "Lufthansa", "static/logos/lufthansa.png", 
-            "Bagaglio a mano incluso: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione:\nRimborso completo fino a 48 ore prima del volo.\n\nCambi NOME:\nModifiche consentite con penale di 50€.\n\nDocumenti:\nPassaporto obbligatorio per voli extra-Schengen.",
-            "#001E49", "#D80621"));
-        
-        AIRLINES.put("AF", new Airline("AF", "Air France", "static/logos/airfrance.png", 
-            "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali\n\nRichieste di cancellazione:\nPenale del 20% per cancellazioni entro 7 giorni.\n\nCambi NOME:\nConsentito solo per errori di battitura entro 24 ore.\n\nDocumenti:\nVisto richiesto per alcune destinazioni, verificare prima della partenza.",
-            "#002395", "#CE1126"));
+        // Initialize airlines with rules and colors
+        AIRLINES.put("AZ", new Airline("AZ", "Alitalia", "static/logos/alitalia.png",
+                "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione:\nI biglietti non sono rimborsabili tranne nei casi in cui la compagnia aerea annulli la prenotazione o sposti l'orario di partenza in modo significativo.\n\nCambi NOME:\nPermesso di cambio nome fino a 24 ore prima della partenza.\n\nDocumenti:\nAssicurati di avere documenti di identità validi per tutti i paesi che visiterai.",
+                "#0066CC", "#FFFFFF"));
+
+        AIRLINES.put("LH", new Airline("LH", "Lufthansa", "static/logos/lufthansa.png",
+                "Bagaglio a mano incluso: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione:\nRimborso completo fino a 48 ore prima del volo.\n\nCambi NOME:\nModifiche consentite con penale di 50€.\n\nDocumenti:\nPassaporto obbligatorio per voli extra-Schengen.",
+                "#001E49", "#D80621"));
+
+        AIRLINES.put("AF", new Airline("AF", "Air France", "static/logos/airfrance.png",
+                "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali\n\nRichieste di cancellazione:\nPenale del 20% per cancellazioni entro 7 giorni.\n\nCambi NOME:\nConsentito solo per errori di battitura entro 24 ore.\n\nDocumenti:\nVisto richiesto per alcune destinazioni, verificare prima della partenza.",
+                "#002395", "#CE1126"));
     }
 
     public byte[] generateTicketPdf(TicketDTO ticket) throws IOException {
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
-            
+
+            // Dichiarare la variabile y fuori dal blocco try
+            float finalYPosition = 0;
+            float pageHeight = page.getMediaBox().getHeight();
+
             try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                // Intestazione con loghi
-                float y = page.getMediaBox().getHeight() - 70;
-                float margin = 50;
-                float pageWidth = page.getMediaBox().getWidth();
-                
-                // Logo Compagnia Aerea (alto a sinistra)
+                // Header with logos
+                float y = pageHeight - 70;
+
+                // Airline Logo (top left)
                 Airline airline = AIRLINES.get(ticket.getAirlineCode());
                 if (airline != null) {
                     try (InputStream is = new ClassPathResource(airline.getLogoPath()).getInputStream()) {
-                        byte[] imageBytes = is.readAllBytes();
                         PDImageXObject airlineImg = PDImageXObject.createFromByteArray(
-                            document, imageBytes, airline.getCode());
-                        
+                                document, is.readAllBytes(), airline.getCode());
+
                         float aspectRatio = (float) airlineImg.getWidth() / airlineImg.getHeight();
                         float imgHeight = 60;
                         float imgWidth = imgHeight * aspectRatio;
-                        contentStream.drawImage(airlineImg, margin, y - imgHeight, imgWidth, imgHeight);
+                        contentStream.drawImage(airlineImg, MARGIN, y - imgHeight, imgWidth, imgHeight);
+                    } catch (Exception e) {
+                        // Log error but continue without a logo
+                        System.err.println("Error loading airline logo: " + e.getMessage());
                     }
                 }
-                
-                // Logo Agenzia Viaggi FISSO (alto a destra)
+
+                // Agency Logo (top right)
                 try (InputStream is = new ClassPathResource(AGENCY_LOGO_PATH).getInputStream()) {
-                    byte[] imageBytes = is.readAllBytes();
                     PDImageXObject agencyImg = PDImageXObject.createFromByteArray(
-                        document, imageBytes, "agency");
-                    
+                            document, is.readAllBytes(), "agency");
+
                     float aspectRatio = (float) agencyImg.getWidth() / agencyImg.getHeight();
                     float imgHeight = 50;
                     float imgWidth = imgHeight * aspectRatio;
-                    float x = pageWidth - margin - imgWidth;
+                    float x = PAGE_WIDTH - MARGIN - imgWidth;
                     contentStream.drawImage(agencyImg, x, y - imgHeight, imgWidth, imgHeight);
+                } catch (Exception e) {
+                    // Log error but continue without logo
+                    System.err.println("Error loading agency logo: " + e.getMessage());
                 }
-                
-                // Linea separatore
+
+                // Separator line
                 contentStream.setLineWidth(1.5f);
-                contentStream.moveTo(margin, y - 80);
-                contentStream.lineTo(pageWidth - margin, y - 80);
+                contentStream.moveTo(MARGIN, y - 80);
+                contentStream.lineTo(PAGE_WIDTH - MARGIN, y - 80);
                 contentStream.stroke();
-                
-                // Dettagli Biglietto
-                contentStream.setFont(new PDType1Font(HELVETICA_BOLD), 14);
+
+                // Ticket details
+                contentStream.setFont(FONT_BOLD, 14);
                 y -= 100;
-                
-                // Titolo
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("BIGLIETTO AEREO - " + (airline != null ? airline.getName().toUpperCase() : ""));
-                contentStream.endText();
+
+                // Title
+                drawText(contentStream, "BIGLIETTO AEREO - " + (airline != null ? airline.getName().toUpperCase() : ""),
+                        MARGIN, y);
                 y -= 30;
-                
+
                 // PNR
-                contentStream.setFont(new PDType1Font(HELVETICA_BOLD), 12);
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("PNR: " + ticket.getPnr());
-                contentStream.endText();
+                contentStream.setFont(FONT_BOLD, 12);
+                drawText(contentStream, "PNR: " + ticket.getPnr(), MARGIN, y);
                 y -= 30;
-                
-                // Informazioni volo
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("Tratta: " + ticket.getRoute());
-                contentStream.endText();
+
+                // Flight info
+                drawText(contentStream, "Tratta: " + ticket.getRoute(), MARGIN, y);
                 y -= 25;
-                
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("Partenza: " + ticket.getDepartureTime());
-                contentStream.endText();
+
+                drawText(contentStream, "Partenza: " + ticket.getDepartureTime(), MARGIN, y);
                 y -= 25;
-                
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("Arrivo: " + ticket.getArrivalTime());
-                contentStream.endText();
+
+                drawText(contentStream, "Arrivo: " + ticket.getArrivalTime(), MARGIN, y);
                 y -= 40;
-                
-                // Intestazione passeggeri
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("PASSEGGERI:");
-                contentStream.endText();
+
+                // Passengers header
+                drawText(contentStream, "PASSEGGERI:", MARGIN, y);
                 y -= 25;
-                
-                // Tabella passeggeri
-                float tableY = y;
+
+                // Passenger table
+                float tableStartY = y;
                 float[] columnWidths = {60, 150, 80, 80, 80};
-                float tableHeight = 20 + (ticket.getPassengers().size() * 20);
-                
-                // Intestazioni colonne
-                contentStream.setFont(new PDType1Font(HELVETICA_BOLD), 10);
-                drawTableRow(contentStream, margin, tableY, new String[]{"TIPO", "NOME E COGNOME", "BAG. A MANO", "KG", "BAG. STIVA"}, columnWidths);
-                
-                // Dettagli passeggeri
-                contentStream.setFont(new PDType1Font(HELVETICA), 10);
+                float rowHeight = 20;
+
+                // Table headers
+                contentStream.setFont(FONT_BOLD, 10);
+                drawTableRow(contentStream, MARGIN, tableStartY,
+                        new String[]{"TIPO", "NOME E COGNOME", "BAG. A MANO", "KG", "BAG. STIVA"},
+                        columnWidths);
+
+                // Passenger data
+                contentStream.setFont(FONT_NORMAL, 10);
                 for (Passenger passenger : ticket.getPassengers()) {
-                    tableY -= 20;
+                    tableStartY -= rowHeight;
                     String handLuggage = passenger.hasHandLuggage() ? "SI" : "NO";
                     String handLuggageKg = passenger.hasHandLuggage() ? passenger.getHandLuggageKg() + "kg" : "-";
-                    String checkedLuggage = passenger.hasCheckedLuggage() ? 
-                        passenger.getCheckedLuggageCount() + " bag (" + passenger.getCheckedLuggageKg() + "kg)" : "NO";
-                    
-                    drawTableRow(contentStream, margin, tableY, 
-                        new String[]{
-                            passenger.getType().toUpperCase(),
-                            passenger.getFullName(),
-                            handLuggage,
-                            handLuggageKg,
-                            checkedLuggage
-                        }, 
-                        columnWidths);
+                    String checkedLuggage = passenger.hasCheckedLuggage() ?
+                            passenger.getCheckedLuggageCount() + " bag (" + passenger.getCheckedLuggageKg() + "kg)" : "NO";
+
+                    drawTableRow(contentStream, MARGIN, tableStartY,
+                            new String[]{
+                                    passenger.getType().toUpperCase(),
+                                    passenger.getFullName(),
+                                    handLuggage,
+                                    handLuggageKg,
+                                    checkedLuggage
+                            },
+                            columnWidths);
                 }
-                y = tableY - 40;
-                
-                // Prezzo
-                contentStream.setFont(new PDType1Font(HELVETICA_BOLD), 12);
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("PREZZO TOTALE: €" + String.format("%.2f", ticket.getPrice()));
-                contentStream.endText();
+                y = tableStartY - 40;
+
+                // Price
+                contentStream.setFont(FONT_BOLD, 12);
+                drawText(contentStream, "PREZZO TOTALE: €" + String.format("%.2f", ticket.getPrice()), MARGIN, y);
                 y -= 30;
-                
-                // Regole
-                contentStream.setFont(new PDType1Font(HELVETICA_BOLD), 11);
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                contentStream.showText("REGOLAMENTO DI VIAGGIO");
-                contentStream.endText();
-                y -= 20;
-                
-                contentStream.setFont(new PDType1Font(HELVETICA), 9);
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, y);
-                
-                String rules = ticket.getRules();
-                String[] rulesLines = rules.split("\n");
-                float leading = 12;
-                
-                for (String line : rulesLines) {
-                    if (line.trim().isEmpty()) {
-                        contentStream.newLineAtOffset(0, -leading);
-                        continue;
-                    }
-                    
-                    // Gestione testo multilinea
-                    while (line.length() > 100) {
-                        int splitIndex = line.substring(0, 100).lastIndexOf(' ');
-                        if (splitIndex <= 0) splitIndex = 100;
-                        contentStream.showText(line.substring(0, splitIndex));
-                        contentStream.newLineAtOffset(0, -leading);
-                        line = line.substring(splitIndex).trim();
-                    }
-                    contentStream.showText(line);
-                    contentStream.newLineAtOffset(0, -leading);
-                }
-                contentStream.endText();
-                
-                // Footer
-                contentStream.setFont(new PDType1Font(HELVETICA_OBLIQUE), 8);
-                contentStream.beginText();
-                contentStream.newLineAtOffset(margin, 50);
-                contentStream.showText("Biglietto generato automaticamente - Documento non trasferibile");
-                contentStream.endText();
+
+                // Salvare la posizione Y finale
+                finalYPosition = y;
+            }  // End of first content stream
+
+            // Check if we need a new page for rules
+            PDPage rulesPage = page;
+            boolean newPageCreated = false;
+
+            // Usiamo la variabile finalYPosition invece di y
+            if (finalYPosition < 150) {
+                rulesPage = new PDPage(PDRectangle.A4);
+                document.addPage(rulesPage);
+                newPageCreated = true;
             }
-            
+
+            // Second content stream for rules (same page or new page)
+            try (PDPageContentStream rulesContentStream = new PDPageContentStream(
+                    document, rulesPage, PDPageContentStream.AppendMode.APPEND,
+                    true)) {
+
+                float rulesY = newPageCreated ? rulesPage.getMediaBox().getHeight() - 50 : finalYPosition;
+
+                // Rules section
+                Airline airline = AIRLINES.get(ticket.getAirlineCode());
+
+                rulesContentStream.setFont(FONT_BOLD, 11);
+                drawText(rulesContentStream, "REGOLAMENTO DI VIAGGIO", MARGIN, rulesY);
+                rulesY -= 20;
+
+                rulesContentStream.setFont(FONT_NORMAL, 9);
+                String rules = airline != null ? airline.getRules() : ticket.getRules();
+                rulesY = drawWrappedText(rulesContentStream, rules, MARGIN, rulesY, RULES_WIDTH, 12);
+
+                // Footer
+                rulesContentStream.setFont(FONT_ITALIC, 8);
+                drawText(rulesContentStream, "Biglietto generato automaticamente - Documento non trasferibile",
+                        MARGIN, 50);
+            }
+
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             document.save(byteArrayOutputStream);
             return byteArrayOutputStream.toByteArray();
         }
     }
-    
-    private void drawTableRow(PDPageContentStream contentStream, float x, float y, String[] texts, float[] columnWidths) throws IOException {
+
+    private void drawText(PDPageContentStream contentStream, String text, float x, float y) throws IOException {
         contentStream.beginText();
-        float currentX = x;
-        for (int i = 0; i < texts.length; i++) {
-            contentStream.newLineAtOffset(currentX - contentStream.getCurrentPosition().getX(), 0);
-            contentStream.showText(texts[i]);
-            currentX += columnWidths[i];
-        }
+        contentStream.newLineAtOffset(x, y);
+        contentStream.showText(text != null ? text : "");
         contentStream.endText();
+    }
+
+    private void drawTableRow(PDPageContentStream contentStream, float startX, float y,
+                              String[] texts, float[] columnWidths) throws IOException {
+        float x = startX;
+        for (int i = 0; i < texts.length; i++) {
+            contentStream.beginText();
+            contentStream.newLineAtOffset(x, y);
+            contentStream.showText(texts[i] != null ? texts[i] : "");
+            contentStream.endText();
+            x += columnWidths[i];
+        }
+    }
+
+    private float drawWrappedText(PDPageContentStream contentStream, String text,
+                                  float x, float y, float maxWidth, float leading) throws IOException {
+        if (text == null || text.isEmpty()) return y;
+
+        String[] paragraphs = text.split("\n");
+        for (String paragraph : paragraphs) {
+            if (paragraph.trim().isEmpty()) {
+                y -= leading;
+                continue;
+            }
+
+            String[] words = paragraph.split("\\s+");
+            StringBuilder currentLine = new StringBuilder();
+
+            for (int i = 0; i < words.length; i++) {
+                String word = words[i];
+                String testLine = currentLine.length() == 0 ? word : currentLine + " " + word;
+                float testWidth = getStringWidth(testLine, FONT_NORMAL, 9);
+
+                if (testWidth > maxWidth && currentLine.length() > 0) {
+                    // Draw current line
+                    drawText(contentStream, currentLine.toString(), x, y);
+                    y -= leading;
+                    currentLine = new StringBuilder(word);
+                } else {
+                    currentLine = new StringBuilder(testLine);
+                }
+
+                // Draw the last word
+                if (i == words.length - 1) {
+                    drawText(contentStream, currentLine.toString(), x, y);
+                    y -= leading;
+                }
+            }
+
+            // Add space between paragraphs
+            y -= leading / 2;
+        }
+        return y;
+    }
+
+    private float getStringWidth(String text, PDFont font, float fontSize) throws IOException {
+        return font.getStringWidth(text) / 1000 * fontSize;
     }
 }

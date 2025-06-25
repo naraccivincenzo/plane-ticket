@@ -20,7 +20,7 @@ import java.util.Map;
 public class TicketController {
 
     private final PdfService pdfService;
-    private final Map<String, com.example.demo.model.Airline> airlines = PdfService.AIRLINES;
+    public final Map<String, com.example.demo.model.Airline> airlines = PdfService.AIRLINES;
 
     public TicketController(PdfService pdfService) {
         this.pdfService = pdfService;
