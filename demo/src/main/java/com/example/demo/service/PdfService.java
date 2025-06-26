@@ -1,8 +1,6 @@
 package com.example.demo.service;
 
-import com.example.demo.model.Airline;
-import com.example.demo.model.Passenger;
-import com.example.demo.model.TicketDTO;
+import com.example.demo.model.*;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -13,47 +11,66 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.*;
 
 @Service
 public class PdfService {
 
-    public static final Map<String, Airline> AIRLINES = new HashMap<>();
     private static final String AGENCY_LOGO_NAME = "agency-logo.png";
     private static final float MARGIN = 50;
     private static final float PAGE_WIDTH = PDRectangle.A4.getWidth();
     private static final float RULES_WIDTH = PAGE_WIDTH - 2 * MARGIN;
+    private static final float LOGO_HEIGHT = 60;
+    private static final float LOGO_WIDTH = 150;
 
-    // Define static fonts for consistent usage
+    // Define static fonts
     private static final PDFont FONT_BOLD = new PDType1Font(HELVETICA_BOLD);
     private static final PDFont FONT_NORMAL = new PDType1Font(HELVETICA);
     private static final PDFont FONT_ITALIC = new PDType1Font(HELVETICA_OBLIQUE);
 
-    // Percorso configurabile per i loghi
     @Value("${app.logos.path:classpath:static/logos/}")
     private String logosPath;
 
-    static {
-        // Initialize airlines with rules and colors
-        AIRLINES.put("AZ", new Airline("AZ", "Alitalia", "alitalia.png",
-                "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione:\nI biglietti non sono rimborsabili tranne nei casi in cui la compagnia aerea annulli la prenotazione o sposti l'orario di partenza in modo significativo.\n\nCambi NOME:\nPermesso di cambio nome fino a 24 ore prima della partenza.\n\nDocumenti:\nAssicurati di avere documenti di identità validi per tutti i paesi che visiterai.",
-                "#0066CC", "#FFFFFF"));
+    @Value("${aviationstack.api.key}")
+    private String aviationApiKey;
 
-        AIRLINES.put("LH", new Airline("LH", "Lufthansa", "lufthansa.png",
-                "Bagaglio a mano incluso: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione:\nRimborso completo fino a 48 ore prima del volo.\n\nCambi NOME:\nModifiche consentite con penale di 50€.\n\nDocumenti:\nPassaporto obbligatorio per voli extra-Schengen.",
-                "#001E49", "#D80621"));
+    private final RestTemplate restTemplate = new RestTemplate();
 
-        AIRLINES.put("AF", new Airline("AF", "Air France", "airfrance.png",
-                "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali\n\nRichieste di cancellazione:\nPenale del 20% per cancellazioni entro 7 giorni.\n\nCambi NOME:\nConsentito solo per errori di battitura entro 24 ore.\n\nDocumenti:\nVisto richiesto per alcune destinazioni, verificare prima della partenza.",
-                "#002395", "#CE1126"));
+    public FlightDTO fetchFlightData(String flightNumber, String date) {
+        String url = "http://api.aviationstack.com/v1/flights" +
+                "?access_key=" + aviationApiKey +
+                "&flight_iata=" + flightNumber +
+                "&date=" + date;
+        
+        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+        if (response != null && response.containsKey("data")) {
+            List<Map<String, Object>> flights = (List<Map<String, Object>>) response.get("data");
+            if (!flights.isEmpty()) {
+                Map<String, Object> flightData = flights.get(0);
+                Map<String, String> departure = (Map<String, String>) flightData.get("departure");
+                Map<String, String> arrival = (Map<String, String>) flightData.get("arrival");
+                Map<String, String> airline = (Map<String, String>) flightData.get("airline");
+                
+                FlightDTO flight = new FlightDTO();
+                flight.setRoute(departure.get("iata") + "-" + arrival.get("iata"));
+                flight.setDepartureTime(departure.get("scheduled").replace("T", " "));
+                flight.setArrivalTime(arrival.get("scheduled").replace("T", " "));
+                flight.setAirlineCode(airline.get("iata"));
+                flight.setAirlineName(airline.get("name"));
+                flight.setLogoUrl("https://logo.clearbit.com/" + airline.get("name").toLowerCase().replace(" ", "") + ".com");
+                
+                return flight;
+            }
+        }
+        return null;
     }
 
     public byte[] generateTicketPdf(TicketDTO ticket) throws IOException {
@@ -65,31 +82,11 @@ public class PdfService {
             float pageHeight = page.getMediaBox().getHeight();
 
             try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                // Header with logos
+                // Header con logo agenzia (dimensione fissa)
                 float y = pageHeight - 70;
-
-                // Airline Logo (top left)
-                Airline airline = AIRLINES.get(ticket.getAirlineCode());
-                if (airline != null) {
-                    try {
-                        PDImageXObject airlineImg = loadLogo(document, airline.getLogoPath());
-                        float aspectRatio = (float) airlineImg.getWidth() / airlineImg.getHeight();
-                        float imgHeight = 60;
-                        float imgWidth = imgHeight * aspectRatio;
-                        contentStream.drawImage(airlineImg, MARGIN, y - imgHeight, imgWidth, imgHeight);
-                    } catch (Exception e) {
-                        System.err.println("Error loading airline logo: " + e.getMessage());
-                    }
-                }
-
-                // Agency Logo (top right)
                 try {
                     PDImageXObject agencyImg = loadLogo(document, AGENCY_LOGO_NAME);
-                    float aspectRatio = (float) agencyImg.getWidth() / agencyImg.getHeight();
-                    float imgHeight = 50;
-                    float imgWidth = imgHeight * aspectRatio;
-                    float x = PAGE_WIDTH - MARGIN - imgWidth;
-                    contentStream.drawImage(agencyImg, x, y - imgHeight, imgWidth, imgHeight);
+                    contentStream.drawImage(agencyImg, PAGE_WIDTH - MARGIN - LOGO_WIDTH, y - LOGO_HEIGHT, LOGO_WIDTH, LOGO_HEIGHT);
                 } catch (Exception e) {
                     System.err.println("Error loading agency logo: " + e.getMessage());
                 }
@@ -100,46 +97,22 @@ public class PdfService {
                 contentStream.lineTo(PAGE_WIDTH - MARGIN, y - 80);
                 contentStream.stroke();
 
-                // Ticket details
+                // Dettagli passeggeri
                 contentStream.setFont(FONT_BOLD, 14);
                 y -= 100;
-
-                // Title
-                drawText(contentStream, "BIGLIETTO AEREO - " + (airline != null ? airline.getName().toUpperCase() : ""),
-                        MARGIN, y);
+                drawText(contentStream, "PASSEGGERI", MARGIN, y);
                 y -= 30;
 
-                // PNR
-                contentStream.setFont(FONT_BOLD, 12);
-                drawText(contentStream, "PNR: " + ticket.getPnr(), MARGIN, y);
-                y -= 30;
-
-                // Flight info
-                drawText(contentStream, "Tratta: " + ticket.getRoute(), MARGIN, y);
-                y -= 25;
-
-                drawText(contentStream, "Partenza: " + ticket.getDepartureTime(), MARGIN, y);
-                y -= 25;
-
-                drawText(contentStream, "Arrivo: " + ticket.getArrivalTime(), MARGIN, y);
-                y -= 40;
-
-                // Passengers header
-                drawText(contentStream, "PASSEGGERI:", MARGIN, y);
-                y -= 25;
-
-                // Passenger table
+                // Tabella passeggeri
                 float tableStartY = y;
                 float[] columnWidths = {60, 150, 80, 80, 80};
                 float rowHeight = 20;
 
-                // Table headers
                 contentStream.setFont(FONT_BOLD, 10);
                 drawTableRow(contentStream, MARGIN, tableStartY,
                         new String[]{"TIPO", "NOME E COGNOME", "BAG. A MANO", "KG", "BAG. STIVA"},
                         columnWidths);
 
-                // Passenger data
                 contentStream.setFont(FONT_NORMAL, 10);
                 for (Passenger passenger : ticket.getPassengers()) {
                     tableStartY -= rowHeight;
@@ -160,16 +133,54 @@ public class PdfService {
                 }
                 y = tableStartY - 40;
 
-                // Price
+                // Voli
+                contentStream.setFont(FONT_BOLD, 14);
+                drawText(contentStream, "VOLI", MARGIN, y);
+                y -= 30;
+
+                for (FlightDTO flight : ticket.getFlights()) {
+                    contentStream.setFont(FONT_BOLD, 12);
+                    drawText(contentStream, "Volo: " + flight.getRoute(), MARGIN, y);
+                    y -= 20;
+                    
+                    drawText(contentStream, "Partenza: " + flight.getDepartureTime(), MARGIN, y);
+                    y -= 20;
+                    
+                    drawText(contentStream, "Arrivo: " + flight.getArrivalTime(), MARGIN, y);
+                    y -= 20;
+                    
+                    drawText(contentStream, "Compagnia: " + flight.getAirlineName(), MARGIN, y);
+                    y -= 20;
+                    
+                    drawText(contentStream, "PNR: " + flight.getPnr(), MARGIN, y);
+                    y -= 20;
+                    
+                    drawText(contentStream, "Prezzo: €" + String.format("%.2f", flight.getPrice()), MARGIN, y);
+                    y -= 30;
+                    
+                    // Logo compagnia (dimensione fissa)
+                    try {
+                        PDImageXObject airlineImg = loadImageFromUrl(document, flight.getLogoUrl());
+                        if (airlineImg != null) {
+                            contentStream.drawImage(airlineImg, MARGIN, y - LOGO_HEIGHT, LOGO_WIDTH, LOGO_HEIGHT);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Error loading airline logo: " + e.getMessage());
+                    }
+                    y -= LOGO_HEIGHT + 20;
+                }
+
+                // Prezzo totale
+                double totalPrice = ticket.getFlights().stream().mapToDouble(FlightDTO::getPrice).sum();
                 contentStream.setFont(FONT_BOLD, 12);
-                drawText(contentStream, "PREZZO TOTALE: €" + String.format("%.2f", ticket.getPrice()), MARGIN, y);
+                drawText(contentStream, "PREZZO TOTALE: €" + String.format("%.2f", totalPrice), MARGIN, y);
                 y -= 30;
 
                 // Save final Y position
                 finalYPosition = y;
             }
 
-            // Check if we need a new page for rules
+            // Sezione regole
             PDPage rulesPage = page;
             boolean newPageCreated = false;
 
@@ -185,16 +196,45 @@ public class PdfService {
 
                 float rulesY = newPageCreated ? rulesPage.getMediaBox().getHeight() - 50 : finalYPosition;
 
-                // Rules section
-                Airline airline = AIRLINES.get(ticket.getAirlineCode());
+                // Tabella regole per compagnia
+                Map<String, String> airlineRules = new HashMap<>();
+                
+                // Raggruppa regole per compagnia (senza duplicati)
+                Map<String, String> distinctRules = ticket.getFlights().stream()
+                        .collect(Collectors.toMap(
+                                FlightDTO::getAirlineName,
+                                f -> getAirlineRules(f.getAirlineName()),
+                                (existing, replacement) -> existing));
+                
+                airlineRules.putAll(distinctRules);
 
+                // Intestazione tabella
                 rulesContentStream.setFont(FONT_BOLD, 11);
                 drawText(rulesContentStream, "REGOLAMENTO DI VIAGGIO", MARGIN, rulesY);
-                rulesY -= 20;
+                rulesY -= 30;
 
-                rulesContentStream.setFont(FONT_NORMAL, 9);
-                String rules = airline != null ? airline.getRules() : ticket.getRules();
-                rulesY = drawWrappedText(rulesContentStream, rules, MARGIN, rulesY, RULES_WIDTH, 12);
+                // Calcola dimensioni colonne
+                int numAirlines = airlineRules.size();
+                float colWidth = (PAGE_WIDTH - 2 * MARGIN) / numAirlines;
+                float rowHeight = 20;
+                float tableStartY = rulesY;
+
+                // Intestazioni colonne
+                rulesContentStream.setFont(FONT_BOLD, 9);
+                float x = MARGIN;
+                for (String airline : airlineRules.keySet()) {
+                    drawText(rulesContentStream, "Regole compagnia " + airline, x, tableStartY);
+                    x += colWidth;
+                }
+                tableStartY -= rowHeight;
+
+                // Dettagli regole
+                rulesContentStream.setFont(FONT_NORMAL, 8);
+                x = MARGIN;
+                for (Map.Entry<String, String> entry : airlineRules.entrySet()) {
+                    rulesY = drawWrappedText(rulesContentStream, entry.getValue(), x, tableStartY, colWidth - 10, 10);
+                    x += colWidth;
+                }
 
                 // Footer
                 rulesContentStream.setFont(FONT_ITALIC, 8);
@@ -206,6 +246,29 @@ public class PdfService {
             document.save(byteArrayOutputStream);
             return byteArrayOutputStream.toByteArray();
         }
+    }
+
+    private String getAirlineRules(String airlineName) {
+        // Mappa statica per regole note
+        Map<String, String> staticRules = new HashMap<>();
+        staticRules.put("Alitalia", "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione: Non rimborsabile");
+        staticRules.put("Lufthansa", "Bagaglio a mano: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore");
+        staticRules.put("Air France", "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali");
+        
+        return staticRules.getOrDefault(airlineName, 
+            "Bagaglio a mano: 1 pezzo max 8kg\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore prima del volo.");
+    }
+
+    private PDImageXObject loadImageFromUrl(PDDocument document, String url) throws IOException {
+        try {
+            byte[] imageBytes = restTemplate.getForObject(url, byte[].class);
+            if (imageBytes != null && imageBytes.length > 0) {
+                return PDImageXObject.createFromByteArray(document, imageBytes, url);
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading image from URL: " + url);
+        }
+        return null;
     }
 
     private PDImageXObject loadLogo(PDDocument document, String logoName) throws IOException {
