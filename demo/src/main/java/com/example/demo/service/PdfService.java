@@ -8,6 +8,8 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.*;
@@ -17,6 +19,9 @@ import org.springframework.web.client.RestTemplate;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,11 +29,11 @@ import static org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.*;
 
 @Service
 public class PdfService {
+    private static final Logger logger = LoggerFactory.getLogger(PdfService.class);
 
     private static final String AGENCY_LOGO_NAME = "agency-logo.png";
     private static final float MARGIN = 50;
     private static final float PAGE_WIDTH = PDRectangle.A4.getWidth();
-    private static final float RULES_WIDTH = PAGE_WIDTH - 2 * MARGIN;
     private static final float LOGO_HEIGHT = 60;
     private static final float LOGO_WIDTH = 150;
 
@@ -36,6 +41,7 @@ public class PdfService {
     private static final PDFont FONT_BOLD = new PDType1Font(HELVETICA_BOLD);
     private static final PDFont FONT_NORMAL = new PDType1Font(HELVETICA);
     private static final PDFont FONT_ITALIC = new PDType1Font(HELVETICA_OBLIQUE);
+    private static final PDFont FONT_SMALL = new PDType1Font(HELVETICA);
 
     @Value("${app.logos.path:classpath:static/logos/}")
     private String logosPath;
@@ -43,8 +49,8 @@ public class PdfService {
     @Value("${aviationstack.api.key}")
     private String aviationApiKey;
 
-    @Value("${brandfetch.client.id}")
-    private String brandfetchClientId;
+    @Value("${brandfetch.api.key}")
+    private String brandfetchApiKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -53,13 +59,17 @@ public class PdfService {
                 "?access_key=" + aviationApiKey +
                 "&flight_iata=" + flightNumber +
                 "&date=" + date;
-        
-        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
-        if (response != null && response.containsKey("data")) {
-            List<Map<String, Object>> flights = (List<Map<String, Object>>) response.get("data");
-            if (!flights.isEmpty()) {
-                return getFlightDTO(flights);
+
+        try {
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            if (response != null && response.containsKey("data")) {
+                List<Map<String, Object>> flights = (List<Map<String, Object>>) response.get("data");
+                if (flights != null && !flights.isEmpty()) {
+                    return getFlightDTO(flights);
+                }
             }
+        } catch (Exception e) {
+            logger.error("Error fetching flight data", e);
         }
         return null;
     }
@@ -72,80 +82,120 @@ public class PdfService {
 
         FlightDTO flight = new FlightDTO();
         flight.setRoute(departure.get("iata") + "-" + arrival.get("iata"));
-        flight.setDepartureTime(departure.get("scheduled").replace("T", " "));
-        flight.setArrivalTime(arrival.get("scheduled").replace("T", " "));
+        flight.setDepartureTime(formatDateTimeForInput(departure.get("scheduled")));
+        flight.setArrivalTime(formatDateTimeForInput(arrival.get("scheduled")));
         flight.setAirlineCode(airline.get("iata"));
         flight.setAirlineName(airline.get("name"));
-        
-        // Use Brandfetch API to get airline logo
+
+        // Get airline logo
         String airlineName = airline.get("name");
-        if (airlineName != null && !airlineName.isEmpty()) {
-            String logoUrl = getBrandfetchLogoUrl(airlineName);
+        String airlineCode = airline.get("iata");
+        if (airlineName != null && !airlineName.isEmpty() && airlineCode != null) {
+            String logoUrl = getBrandfetchLogoUrl(airlineName, airlineCode);
             flight.setLogoUrl(logoUrl);
         } else {
-            flight.setLogoUrl("");
+            flight.setLogoUrl(getFallbackLogoUrl(airlineCode));
         }
-        
+
         return flight;
     }
 
-    private String getBrandfetchLogoUrl(String airlineName) {
+    private String formatDateTimeForInput(String dateTime) {
+        if (dateTime == null) return "";
         try {
-            // Create headers with authorization
+            OffsetDateTime odt = OffsetDateTime.parse(dateTime);
+            // Formato compatibile con datetime-local: "yyyy-MM-dd'T'HH:mm"
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+            return odt.format(formatter);
+        } catch (Exception e) {
+            logger.error("Error formatting date for input: {}", dateTime, e);
+            // Fallback a formato ISO semplificato
+            return dateTime.replace("T", " ").substring(0, 16).replace(" ", "T");
+        }
+    }
+
+    private String formatDateTimeForDisplay(String dateTime) {
+        if (dateTime == null) return "";
+        try {
+            // Converti da formato input HTML a formato visualizzazione
+            LocalDateTime ldt = LocalDateTime.parse(dateTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy 'alle' HH.mm");
+            return ldt.format(formatter);
+        } catch (Exception e) {
+            logger.error("Error formatting date for display: {}", dateTime, e);
+            // Formato fallback
+            return dateTime.replace("T", " ").substring(0, 16);
+        }
+    }
+
+    private String getFallbackLogoUrl(String airlineCode) {
+        if (airlineCode == null || airlineCode.isEmpty()) return "";
+        return "https://daisycon.io/images/airline/?width=150&height=60&iata=" + airlineCode;
+    }
+
+    private String getBrandfetchLogoUrl(String airlineName, String airlineCode) {
+        try {
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + brandfetchClientId);
+            headers.set("Authorization", "Bearer " + brandfetchApiKey);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-            // Create request entity
             HttpEntity<String> entity = new HttpEntity<>(headers);
+            String encodedName = airlineName.replace(" ", "%20");
+            String apiUrl = "https://api.brandfetch.io/v2/brands/search?query=" + encodedName;
 
-            // Make API request to Brandfetch
-            String apiUrl = "https://api.brandfetch.io/v2/brands/search?query=" + 
-                            airlineName.replace(" ", "%20");
-            
             ResponseEntity<Map> response = restTemplate.exchange(
-                apiUrl, HttpMethod.GET, entity, Map.class);
-            
+                    apiUrl, HttpMethod.GET, entity, Map.class);
+
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> brands = (List<Map<String, Object>>) response.getBody().get("data");
-                if (brands != null && !brands.isEmpty()) {
-                    // Get the first brand
-                    Map<String, Object> brand = brands.get(0);
-                    List<Map<String, Object>> logos = (List<Map<String, Object>>) brand.get("logos");
-                    
-                    if (logos != null && !logos.isEmpty()) {
-                        // Find the main logo (usually the first one)
-                        for (Map<String, Object> logo : logos) {
-                            String type = (String) logo.get("type");
-                            if ("main".equals(type) || "symbol".equals(type)) {
-                                List<Map<String, Object>> formats = (List<Map<String, Object>>) logo.get("formats");
+                Map<String, Object> responseBody = response.getBody();
+                if (responseBody.containsKey("data")) {
+                    List<Map<String, Object>> brands = (List<Map<String, Object>>) responseBody.get("data");
+                    if (brands != null && !brands.isEmpty()) {
+                        Map<String, Object> brand = brands.get(0);
+                        if (brand.containsKey("logos")) {
+                            List<Map<String, Object>> logos = (List<Map<String, Object>>) brand.get("logos");
+
+                            if (logos != null && !logos.isEmpty()) {
+                                for (Map<String, Object> logo : logos) {
+                                    String type = (String) logo.get("type");
+                                    if ("main".equals(type) || "symbol".equals(type)) {
+                                        List<Map<String, Object>> formats = (List<Map<String, Object>>) logo.get("formats");
+                                        if (formats != null && !formats.isEmpty()) {
+                                            return (String) formats.get(0).get("src");
+                                        }
+                                    }
+                                }
+
+                                // Fallback to first available logo
+                                Map<String, Object> firstLogo = logos.get(0);
+                                List<Map<String, Object>> formats = (List<Map<String, Object>>) firstLogo.get("formats");
                                 if (formats != null && !formats.isEmpty()) {
-                                    // Get the first format (usually the best quality)
-                                    Map<String, Object> format = formats.get(0);
-                                    return (String) format.get("src");
+                                    return (String) formats.get(0).get("src");
                                 }
                             }
-                        }
-                        
-                        // If no main/symbol logo found, use the first available
-                        Map<String, Object> firstLogo = logos.get(0);
-                        List<Map<String, Object>> formats = (List<Map<String, Object>>) firstLogo.get("formats");
-                        if (formats != null && !formats.isEmpty()) {
-                            return (String) formats.get(0).get("src");
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error fetching logo from Brandfetch: " + e.getMessage());
+            logger.error("Brandfetch error for airline: {}", airlineName, e);
         }
-        
-        // Fallback to daisycon if Brandfetch fails
-        return "https://daisycon.io/images/airline/?width=150&height=60&iata=" + 
-               airlineName.substring(0, Math.min(2, airlineName.length()));
+        return getFallbackLogoUrl(airlineCode);
     }
 
     public byte[] generateTicketPdf(TicketDTO ticket) throws IOException {
+        if (ticket == null) {
+            throw new IllegalArgumentException("TicketDTO cannot be null");
+        }
+
+        // Initialize null collections to prevent NullPointerException
+        if (ticket.getPassengers() == null) {
+            ticket.setPassengers(Collections.emptyList());
+        }
+        if (ticket.getFlights() == null) {
+            ticket.setFlights(Collections.emptyList());
+        }
+
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
@@ -154,13 +204,30 @@ public class PdfService {
             float pageHeight = page.getMediaBox().getHeight();
 
             try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                // Header con logo agenzia (dimensione fissa)
+                // Header with agency logo (top right)
                 float y = pageHeight - 70;
                 try {
                     PDImageXObject agencyImg = loadLogo(document, AGENCY_LOGO_NAME);
                     contentStream.drawImage(agencyImg, PAGE_WIDTH - MARGIN - LOGO_WIDTH, y - LOGO_HEIGHT, LOGO_WIDTH, LOGO_HEIGHT);
                 } catch (Exception e) {
-                    System.err.println("Error loading agency logo: " + e.getMessage());
+                    logger.error("Error loading agency logo", e);
+                }
+
+                // Airline logo (top left) - only if all flights have same airline
+                boolean sameAirline = ticket.getFlights().stream()
+                        .map(FlightDTO::getAirlineName)
+                        .distinct()
+                        .count() == 1;
+
+                if (!ticket.getFlights().isEmpty() && sameAirline) {
+                    try {
+                        PDImageXObject airlineImg = loadImageFromUrl(document, ticket.getFlights().get(0).getLogoUrl());
+                        if (airlineImg != null) {
+                            contentStream.drawImage(airlineImg, MARGIN, y - LOGO_HEIGHT, LOGO_WIDTH, LOGO_HEIGHT);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error loading airline logo", e);
+                    }
                 }
 
                 // Separator line
@@ -169,67 +236,91 @@ public class PdfService {
                 contentStream.lineTo(PAGE_WIDTH - MARGIN, y - 80);
                 contentStream.stroke();
 
-                // Dettagli passeggeri
+                // Passengers section
                 contentStream.setFont(FONT_BOLD, 14);
                 y -= 100;
                 drawText(contentStream, "PASSEGGERI", MARGIN, y);
                 y -= 30;
 
-                // Tabella passeggeri
-                float tableStartY = y;
-                float[] columnWidths = {60, 150, 80, 80, 80};
-                float rowHeight = 20;
+                // Passengers table
+                if (!ticket.getPassengers().isEmpty()) {
+                    float tableStartY = y;
+                    float[] columnWidths = {60, 150, 80, 80, 80};
+                    float rowHeight = 20;
 
-                contentStream.setFont(FONT_BOLD, 10);
-                drawTableRow(contentStream, MARGIN, tableStartY,
-                        new String[]{"TIPO", "NOME E COGNOME", "BAG. A MANO", "KG", "BAG. STIVA"},
-                        columnWidths);
-
-                contentStream.setFont(FONT_NORMAL, 10);
-                for (Passenger passenger : ticket.getPassengers()) {
-                    tableStartY -= rowHeight;
-                    String handLuggage = passenger.hasHandLuggage() ? "SI" : "NO";
-                    String handLuggageKg = passenger.hasHandLuggage() ? passenger.getHandLuggageKg() + "kg" : "-";
-                    String checkedLuggage = passenger.hasCheckedLuggage() ?
-                            passenger.getCheckedLuggageCount() + " bag (" + passenger.getCheckedLuggageKg() + "kg)" : "NO";
-
+                    contentStream.setFont(FONT_BOLD, 10);
                     drawTableRow(contentStream, MARGIN, tableStartY,
-                            new String[]{
-                                    passenger.getType().toUpperCase(),
-                                    passenger.getFullName(),
-                                    handLuggage,
-                                    handLuggageKg,
-                                    checkedLuggage
-                            },
+                            new String[]{"TIPO", "NOME E COGNOME", "BAG. A MANO", "KG", "BAG. STIVA"},
                             columnWidths);
-                }
-                y = tableStartY - 40;
 
-                // Voli
+                    contentStream.setFont(FONT_NORMAL, 10);
+                    for (Passenger passenger : ticket.getPassengers()) {
+                        tableStartY -= rowHeight;
+                        String handLuggage = passenger.hasHandLuggage() ? "SI" : "NO";
+                        String handLuggageKg = passenger.hasHandLuggage() ? passenger.getHandLuggageKg() + "kg" : "-";
+                        String checkedLuggage = passenger.hasCheckedLuggage() ?
+                                passenger.getCheckedLuggageCount() + " bag (" + passenger.getCheckedLuggageKg() + "kg)" : "NO";
+
+                        drawTableRow(contentStream, MARGIN, tableStartY,
+                                new String[]{
+                                        passenger.getType().toUpperCase(),
+                                        passenger.getFullName(),
+                                        handLuggage,
+                                        handLuggageKg,
+                                        checkedLuggage
+                                },
+                                columnWidths);
+                    }
+                    y = tableStartY - 40;
+                } else {
+                    y -= 20;
+                }
+
+                // Flights section
                 contentStream.setFont(FONT_BOLD, 14);
                 drawText(contentStream, "VOLI", MARGIN, y);
                 y -= 30;
 
-                for (FlightDTO flight : ticket.getFlights()) {
+                // Show all flights regardless of airline
+                for (int i = 0; i < ticket.getFlights().size(); i++) {
+                    FlightDTO flight = ticket.getFlights().get(i);
+
+                    // Flight header
                     contentStream.setFont(FONT_BOLD, 12);
                     drawText(contentStream, "Volo: " + flight.getRoute(), MARGIN, y);
                     y -= 20;
-                    
-                    drawText(contentStream, "Partenza: " + flight.getDepartureTime(), MARGIN, y);
+
+                    // Formatta la data per la visualizzazione
+                    String departureDisplay = formatDateTimeForDisplay(flight.getDepartureTime());
+                    String arrivalDisplay = formatDateTimeForDisplay(flight.getArrivalTime());
+
+                    drawText(contentStream, "Partenza: " + departureDisplay, MARGIN, y);
                     y -= 20;
-                    
-                    drawText(contentStream, "Arrivo: " + flight.getArrivalTime(), MARGIN, y);
+
+                    drawText(contentStream, "Arrivo: " + arrivalDisplay, MARGIN, y);
                     y -= 20;
-                    
+
                     drawText(contentStream, "Compagnia: " + flight.getAirlineName(), MARGIN, y);
                     y -= 20;
-                    
-                    drawText(contentStream, "PNR: " + flight.getPnr(), MARGIN, y);
-                    y -= 20;
-                    
-                    drawText(contentStream, "Prezzo: €" + String.format("%.2f", flight.getPrice()), MARGIN, y);
-                    y -= 30;
-                    
+
+                    // Show PNR only if available
+                    if (flight.getPnr() != null && !flight.getPnr().isEmpty()) {
+                        drawText(contentStream, "PNR: " + flight.getPnr(), MARGIN, y);
+                        y -= 20;
+                    }
+
+                    // Add luggage details for the flight
+                    if (i == 0) {
+                        // Only show luggage details for the first flight
+                        contentStream.setFont(FONT_SMALL, 10);
+                        drawText(contentStream, "Bagaglio a mano: 1 pezzo max 8kg", MARGIN, y);
+                        y -= 15;
+                        drawText(contentStream, "Bagaglio in stiva: 23kg incluso", MARGIN, y);
+                        y -= 15;
+                        drawText(contentStream, "Richieste di cancellazione: Rimborso completo fino a 48 ore prima del volo", MARGIN, y);
+                        y -= 20;
+                    }
+
                     // Logo compagnia (dimensione fissa)
                     try {
                         PDImageXObject airlineImg = loadImageFromUrl(document, flight.getLogoUrl());
@@ -237,16 +328,28 @@ public class PdfService {
                             contentStream.drawImage(airlineImg, MARGIN, y - LOGO_HEIGHT, LOGO_WIDTH, LOGO_HEIGHT);
                         }
                     } catch (Exception e) {
-                        System.err.println("Error loading airline logo: " + e.getMessage());
+                        logger.error("Error loading airline logo: {}", flight.getAirlineName(), e);
                     }
                     y -= LOGO_HEIGHT + 20;
+
+                    // Add separator line between flights (except after last flight)
+                    if (i < ticket.getFlights().size() - 1) {
+                        contentStream.setLineWidth(0.5f);
+                        contentStream.moveTo(MARGIN, y - 10);
+                        contentStream.lineTo(PAGE_WIDTH - MARGIN, y - 10);
+                        contentStream.stroke();
+                        y -= 30;  // Additional space after separator
+                    }
                 }
 
-                // Prezzo totale
+                // Add more space before total price
+                y -= 40;
+
+                // Prezzo totale (solo alla fine)
                 double totalPrice = ticket.getFlights().stream().mapToDouble(FlightDTO::getPrice).sum();
-                contentStream.setFont(FONT_BOLD, 12);
+                contentStream.setFont(FONT_BOLD, 14);
                 drawText(contentStream, "PREZZO TOTALE: €" + String.format("%.2f", totalPrice), MARGIN, y);
-                y -= 30;
+                y -= 40;
 
                 // Save final Y position
                 finalYPosition = y;
@@ -323,28 +426,30 @@ public class PdfService {
         staticRules.put("Alitalia", "Bagaglio a mano incluso: 1 pezzo max 8kg\nBagaglio in stiva: 23kg a pagamento\n\nRichieste di cancellazione: Non rimborsabile");
         staticRules.put("Lufthansa", "Bagaglio a mano: 1 pezzo + 1 personale\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore");
         staticRules.put("Air France", "Bagaglio a mano: 1 pezzo max 12kg\nBagaglio in stiva: 23kg incluso per voli intercontinentali");
-        
-        return staticRules.getOrDefault(airlineName, 
-            "Bagaglio a mano: 1 pezzo max 8kg\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore prima del volo.");
+        staticRules.put("ITA Airways", "Bagaglio a mano: 1 pezzo max 8kg\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore prima del volo.");
+        staticRules.put("Ryanair", "Bagaglio a mano: 1 pezzo max 10kg (dimensioni 40x20x25cm)\nBagaglio in stiva: 20kg a pagamento\n\nRichieste di cancellazione: Non rimborsabile");
+
+        return staticRules.getOrDefault(airlineName,
+                "Bagaglio a mano: 1 pezzo max 8kg\nBagaglio in stiva: 23kg incluso\n\nRichieste di cancellazione: Rimborso completo fino a 48 ore prima del volo.");
     }
 
     private PDImageXObject loadImageFromUrl(PDDocument document, String url) throws IOException {
         try {
-            // Create headers with authorization if needed
+            // Create headers with authorization
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + brandfetchClientId);
+            headers.set("Authorization", "Bearer " + brandfetchApiKey);
             headers.setAccept(Collections.singletonList(MediaType.IMAGE_PNG));
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
-            
+
             ResponseEntity<byte[]> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, byte[].class);
-            
+                    url, HttpMethod.GET, entity, byte[].class);
+
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 return PDImageXObject.createFromByteArray(document, response.getBody(), url);
             }
         } catch (Exception e) {
-            System.err.println("Error loading image from URL: " + url);
+            logger.error("Error loading image from URL: {}", url, e);
         }
         return null;
     }
