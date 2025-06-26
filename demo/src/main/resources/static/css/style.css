@@ -133,4 +133,63 @@ body {
     .passenger-template .row > div {
         margin-bottom: 15px;
     }
+    .form-control-lg {
+    font-size: 1.1rem;
+    padding: 12px 15px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 2px solid #ced4da;
+    transition: all 0.3s ease;
+}
+
+.form-control-lg:focus {
+    background-color: white;
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+}
+
+.flight-section {
+    background-color: rgba(236, 240, 241, 0.7);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 25px;
+    transition: all 0.3s;
+    border: 1px solid #dee2e6;
+}
+
+.flight-section:hover {
+    background-color: rgba(236, 240, 241, 0.9);
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.flight-header {
+    cursor: pointer;
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.flight-header h4 {
+    margin: 0;
+}
+
+/* Migliora contrasto per accessibilità */
+body {
+    color: #212529;
+}
+
+label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #2c3e50;
+}
+
+.card-header {
+    color: white !important;
+}
 }
