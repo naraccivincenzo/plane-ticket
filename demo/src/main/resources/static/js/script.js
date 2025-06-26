@@ -10,40 +10,42 @@ function initForm() {
     
     // Gestione cambio compagnia aerea
     const airlineSelect = document.getElementById('airlineCode');
-    airlineSelect.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const logoPath = selectedOption.getAttribute('data-logo');
-        const rules = selectedOption.getAttribute('data-rules');
-        const primaryColor = selectedOption.getAttribute('data-primary');
-        const secondaryColor = selectedOption.getAttribute('data-secondary');
-        const previewDiv = document.getElementById('airline-logo-preview');
-        const rulesTextarea = document.getElementById('rules');
-        
-        // Aggiorna logo e regole
-        if (logoPath) {
-            previewDiv.style.display = 'flex';
-            previewDiv.querySelector('img').src = '/logos/' + logoPath.split('/').pop();
-        } else {
-            previewDiv.style.display = 'none';
-        }
-        
-        if (rules) {
-            rulesTextarea.value = rules;
-        }
-        
-        // Applica i colori della compagnia
-        if (primaryColor && secondaryColor) {
-            document.documentElement.style.setProperty('--primary', primaryColor);
-            document.documentElement.style.setProperty('--secondary', secondaryColor);
+    if (airlineSelect) {
+        airlineSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const logoPath = selectedOption.getAttribute('data-logo');
+            const rules = selectedOption.getAttribute('data-rules');
+            const primaryColor = selectedOption.getAttribute('data-primary');
+            const secondaryColor = selectedOption.getAttribute('data-secondary');
+            const previewDiv = document.getElementById('airline-logo-preview');
+            const rulesTextarea = document.getElementById('rules');
             
-            // Aggiorna stili pulsanti e header
-            document.querySelectorAll('.btn').forEach(btn => {
-                btn.style.background = `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`;
-            });
+            // Aggiorna logo e regole
+            if (logoPath) {
+                previewDiv.style.display = 'flex';
+                previewDiv.querySelector('img').src = '/logos/' + logoPath.split('/').pop();
+            } else {
+                previewDiv.style.display = 'none';
+            }
             
-            document.querySelector('.card-header').style.backgroundColor = primaryColor;
-        }
-    });
+            if (rules) {
+                rulesTextarea.value = rules;
+            }
+            
+            // Applica i colori della compagnia
+            if (primaryColor && secondaryColor) {
+                document.documentElement.style.setProperty('--primary', primaryColor);
+                document.documentElement.style.setProperty('--secondary', secondaryColor);
+                
+                // Aggiorna stili pulsanti e header
+                document.querySelectorAll('.btn').forEach(btn => {
+                    btn.style.background = `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`;
+                });
+                
+                document.querySelector('.card-header').style.backgroundColor = primaryColor;
+            }
+        });
+    }
     
     // Gestione aggiunta passeggeri
     let passengerCount = 1;
@@ -89,6 +91,11 @@ function initForm() {
         }
         form.classList.add('was-validated');
     }, false);
+    
+    // Migliora visibilità input
+    document.querySelectorAll('.form-control').forEach(input => {
+        input.classList.add('form-control-lg');
+    });
     
     // Imposta colori di default
     document.documentElement.style.setProperty('--primary', '#3498db');
