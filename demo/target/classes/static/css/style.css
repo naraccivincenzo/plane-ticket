@@ -124,12 +124,12 @@ body {
     .card-body {
         padding: 1.5rem;
     }
-    
+
     .form-row {
         flex-direction: column;
         gap: 0;
     }
-    
+
     .passenger-template .row > div {
         margin-bottom: 15px;
     }
@@ -190,4 +190,18 @@ body {
 .input-group-text {
     background-color: #e9ecef;
     border: 1px solid #ced4da;
+}
+
+/* Nuovi stili per gestione PNR */
+.pnr-field {
+    transition: all 0.3s;
+}
+
+/* Stile per pulsante rimuovi volo */
+.remove-flight {
+    transition: all 0.3s;
+}
+
+.remove-flight:hover {
+    transform: scale(1.1);
 }
