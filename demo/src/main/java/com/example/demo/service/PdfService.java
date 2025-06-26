@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
@@ -45,7 +46,7 @@ public class PdfService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     public FlightDTO fetchFlightData(String flightNumber, String date) {
-        String url = "http://api.aviationstack.com/v1/flights" +
+        String url = "https://api.aviationstack.com/v1/flights" +
                 "?access_key=" + aviationApiKey +
                 "&flight_iata=" + flightNumber +
                 "&date=" + date;
@@ -54,23 +55,28 @@ public class PdfService {
         if (response != null && response.containsKey("data")) {
             List<Map<String, Object>> flights = (List<Map<String, Object>>) response.get("data");
             if (!flights.isEmpty()) {
-                Map<String, Object> flightData = flights.get(0);
-                Map<String, String> departure = (Map<String, String>) flightData.get("departure");
-                Map<String, String> arrival = (Map<String, String>) flightData.get("arrival");
-                Map<String, String> airline = (Map<String, String>) flightData.get("airline");
-                
-                FlightDTO flight = new FlightDTO();
-                flight.setRoute(departure.get("iata") + "-" + arrival.get("iata"));
-                flight.setDepartureTime(departure.get("scheduled").replace("T", " "));
-                flight.setArrivalTime(arrival.get("scheduled").replace("T", " "));
-                flight.setAirlineCode(airline.get("iata"));
-                flight.setAirlineName(airline.get("name"));
-                flight.setLogoUrl("https://logo.clearbit.com/" + airline.get("name").toLowerCase().replace(" ", "") + ".com");
-                
+                FlightDTO flight = getFlightDTO(flights);
+
                 return flight;
             }
         }
         return null;
+    }
+
+    private static FlightDTO getFlightDTO(List<Map<String, Object>> flights) {
+        Map<String, Object> flightData = flights.get(0);
+        Map<String, String> departure = (Map<String, String>) flightData.get("departure");
+        Map<String, String> arrival = (Map<String, String>) flightData.get("arrival");
+        Map<String, String> airline = (Map<String, String>) flightData.get("airline");
+
+        FlightDTO flight = new FlightDTO();
+        flight.setRoute(departure.get("iata") + "-" + arrival.get("iata"));
+        flight.setDepartureTime(departure.get("scheduled").replace("T", " "));
+        flight.setArrivalTime(arrival.get("scheduled").replace("T", " "));
+        flight.setAirlineCode(airline.get("iata"));
+        flight.setAirlineName(airline.get("name"));
+        flight.setLogoUrl("https://logo.clearbit.com/" + airline.get("name").toLowerCase().replace(" ", "") + ".com");
+        return flight;
     }
 
     public byte[] generateTicketPdf(TicketDTO ticket) throws IOException {
@@ -197,16 +203,15 @@ public class PdfService {
                 float rulesY = newPageCreated ? rulesPage.getMediaBox().getHeight() - 50 : finalYPosition;
 
                 // Tabella regole per compagnia
-                Map<String, String> airlineRules = new HashMap<>();
-                
+
                 // Raggruppa regole per compagnia (senza duplicati)
                 Map<String, String> distinctRules = ticket.getFlights().stream()
                         .collect(Collectors.toMap(
                                 FlightDTO::getAirlineName,
                                 f -> getAirlineRules(f.getAirlineName()),
                                 (existing, replacement) -> existing));
-                
-                airlineRules.putAll(distinctRules);
+
+                Map<String, String> airlineRules = new HashMap<>(distinctRules);
 
                 // Intestazione tabella
                 rulesContentStream.setFont(FONT_BOLD, 11);
@@ -328,7 +333,7 @@ public class PdfService {
 
             for (int i = 0; i < words.length; i++) {
                 String word = words[i];
-                String testLine = currentLine.length() == 0 ? word : currentLine + " " + word;
+                String testLine = currentLine.isEmpty() ? word : currentLine + " " + word;
                 float testWidth = getStringWidth(testLine, FONT_NORMAL, 9);
 
                 if (testWidth > maxWidth && currentLine.length() > 0) {
