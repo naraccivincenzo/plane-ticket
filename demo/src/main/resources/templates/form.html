@@ -13,11 +13,40 @@
     
     <!-- Stili personalizzati -->
     <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .flight-section {
+            background-color: rgba(236, 240, 241, 0.7);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+            transition: all 0.3s;
+        }
+        .flight-section:hover {
+            background-color: rgba(236, 240, 241, 0.9);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .form-control-lg {
+            font-size: 1.1rem;
+            padding: 12px 15px;
+        }
+        .flight-header {
+            cursor: pointer;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .flight-header h4 {
+            margin: 0;
+        }
+    </style>
 </head>
 <body id="airline-theme">
     <div class="container py-5">
         <div class="row justify-content-center">
-            <div class="col-md-10">
+            <div class="col-md-12">
                 <div class="card shadow-lg">
                     <div class="card-header">
                         <h1 class="card-title text-center mb-0">Genera Biglietto Aereo</h1>
@@ -34,7 +63,7 @@
                                         <div class="row g-3">
                                             <div class="col-md-3">
                                                 <label class="form-label">Tipo</label>
-                                                <select class="form-select passenger-type" name="passengerType" required>
+                                                <select class="form-select form-select-lg passenger-type" name="passengerType" required>
                                                     <option value="adulto">Adulti</option>
                                                     <option value="ragazzo">Ragazzo (12-17)</option>
                                                     <option value="infant">Infant (0-2)</option>
@@ -43,7 +72,7 @@
                                             
                                             <div class="col-md-5">
                                                 <label class="form-label">Nome e Cognome</label>
-                                                <input type="text" class="form-control" name="passengerName" required>
+                                                <input type="text" class="form-control form-control-lg" name="passengerName" required>
                                             </div>
                                             
                                             <div class="col-md-4">
@@ -55,7 +84,7 @@
                                                 <div class="hand-luggage-details mt-2 ms-4" style="display: none;">
                                                     <div class="input-group">
                                                         <span class="input-group-text">KG</span>
-                                                        <input type="number" class="form-control" name="handLuggageKg" min="0" max="20" value="8">
+                                                        <input type="number" class="form-control form-control-lg" name="handLuggageKg" min="0" max="20" value="8">
                                                     </div>
                                                 </div>
                                             </div>
@@ -71,13 +100,13 @@
                                                         <div class="col-6">
                                                             <div class="input-group">
                                                                 <span class="input-group-text">N°</span>
-                                                                <input type="number" class="form-control" name="checkedLuggageCount" min="0" max="5" value="1">
+                                                                <input type="number" class="form-control form-control-lg" name="checkedLuggageCount" min="0" max="5" value="1">
                                                             </div>
                                                         </div>
                                                         <div class="col-6">
                                                             <div class="input-group">
                                                                 <span class="input-group-text">KG</span>
-                                                                <input type="number" class="form-control" name="checkedLuggageKg" min="0" max="50" value="23">
+                                                                <input type="number" class="form-control form-control-lg" name="checkedLuggageKg" min="0" max="50" value="23">
                                                             </div>
                                                         </div>
                                                     </div>
@@ -92,82 +121,95 @@
                                 </button>
                             </div>
                             
-                            <!-- Informazioni Volo -->
-                            <div class="mb-4 border p-3 rounded">
-                                <h3 class="mb-3"><i class="fas fa-plane me-2"></i> Informazioni Volo</h3>
+                            <!-- Sezione Voli -->
+                            <div class="mb-4">
+                                <h3 class="mb-3"><i class="fas fa-plane me-2"></i> Voli</h3>
                                 
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Tratta</label>
-                                        <input type="text" class="form-control" name="route" required placeholder="Milano MAL - Parigi CDG">
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label class="form-label">PNR (Passenger Name Record)</label>
-                                        <input type="text" class="form-control" name="pnr" required placeholder="Es: ABC123">
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label class="form-label">Partenza</label>
-                                        <input type="datetime-local" class="form-control" name="departureTime" required>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label class="form-label">Arrivo</label>
-                                        <input type="datetime-local" class="form-control" name="arrivalTime" required>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Compagnia Aerea -->
-                            <div class="mb-4 border p-3 rounded">
-                                <h3 class="mb-3"><i class="fas fa-building me-2"></i> Compagnia Aerea</h3>
-                                
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Compagnia</label>
-                                        <select class="form-select" id="airlineCode" name="airlineCode" required>
-                                            <option value="" disabled selected>Seleziona una compagnia</option>
-                                            <option th:each="airline : ${airlines}" 
-                                                    th:value="${airline.code}"
-                                                    th:data-logo="${airline.logoPath}"
-                                                    th:data-rules="${airline.rules}"
-                                                    th:data-primary="${airline.primaryColor}"
-                                                    th:data-secondary="${airline.secondaryColor}"
-                                                    th:text="${airline.name}"></option>
-                                        </select>
+                                <div id="flights-container">
+                                    <!-- Template volo -->
+                                    <div class="flight-section" id="flight-0">
+                                        <div class="flight-header d-flex justify-content-between align-items-center">
+                                            <h4>Volo #1</h4>
+                                            <button type="button" class="btn btn-sm btn-danger remove-flight" style="display: none;">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
                                         
-                                        <!-- Anteprima logo compagnia -->
-                                        <div class="mt-2" id="airline-logo-preview" style="display: none;">
-                                            <div class="d-flex align-items-center">
-                                                <img src="" class="preview-logo me-3">
-                                                <span class="small text-muted">Logo compagnia selezionata</span>
+                                        <div class="row g-3">
+                                            <!-- Ricerca volo -->
+                                            <div class="col-md-6">
+                                                <label class="form-label">Ricerca Volo</label>
+                                                <div class="input-group mb-3">
+                                                    <input type="text" class="form-control form-control-lg flight-number" placeholder="Numero volo (es: AZ123)">
+                                                    <input type="date" class="form-control form-control-lg flight-date">
+                                                    <button type="button" class="btn btn-primary fetch-flight">
+                                                        <i class="fas fa-search"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <label class="form-label">PNR (Passenger Name Record)</label>
+                                                <input type="text" class="form-control form-control-lg" name="pnr" required placeholder="Es: ABC123">
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <label class="form-label">Tratta</label>
+                                                <input type="text" class="form-control form-control-lg" name="route" required placeholder="Milano MAL - Parigi CDG">
+                                            </div>
+                                            
+                                            <div class="col-md-3">
+                                                <label class="form-label">Partenza</label>
+                                                <input type="datetime-local" class="form-control form-control-lg" name="departureTime" required>
+                                            </div>
+                                            
+                                            <div class="col-md-3">
+                                                <label class="form-label">Arrivo</label>
+                                                <input type="datetime-local" class="form-control form-control-lg" name="arrivalTime" required>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <label class="form-label">Compagnia</label>
+                                                <input type="text" class="form-control form-control-lg airline-name" name="airlineName" readonly>
+                                                <input type="hidden" name="airlineCode">
+                                                <input type="hidden" name="logoUrl">
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <label class="form-label">Prezzo (€)</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">€</span>
+                                                    <input type="number" class="form-control form-control-lg" name="price" step="0.01" min="0" required placeholder="150.00">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-4">
+                                                <div class="mt-2" id="airline-logo-preview-0" style="display: none;">
+                                                    <img src="" class="preview-logo">
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label class="form-label">Prezzo Totale (€)</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">€</span>
-                                            <input type="number" class="form-control" name="price" step="0.01" min="0" required placeholder="150.00">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="col-12">
-                                        <label class="form-label">Regole della Compagnia</label>
-                                        <textarea class="form-control" id="rules" name="rules" rows="6" required></textarea>
-                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button type="button" id="add-flight" class="btn btn-outline-primary">
+                                        <i class="fas fa-plus me-1"></i> Aggiungi Volo
+                                    </button>
+                                </div>
+                                
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="samePnr" name="samePnr">
+                                    <label class="form-check-label" for="samePnr">
+                                        Tutti i voli hanno lo stesso PNR
+                                    </label>
                                 </div>
                             </div>
                             
-                            <!-- Logo Agenzia -->
-                            <div class="text-center mb-4 p-3 border rounded bg-light">
-                                <h5 class="mb-3"><i class="fas fa-camera me-2"></i> Logo Agenzia</h5>
-                                <div class="d-flex justify-content-center">
-                                    <img th:src="@{/logos/agency-logo.png}" class="preview-logo">
-                                </div>
-                                <small class="text-muted">Logo preimpostato per tutti i biglietti</small>
+                            <!-- Regole Generiche -->
+                            <div class="mb-4 border p-3 rounded">
+                                <h3 class="mb-3"><i class="fas fa-file-alt me-2"></i> Regole Generiche</h3>
+                                <textarea class="form-control form-control-lg" id="rules" name="rules" rows="6" required></textarea>
                             </div>
                             
                             <button type="submit" class="btn btn-lg w-100 py-3 fw-bold">
@@ -185,5 +227,116 @@
     
     <!-- Script personalizzato -->
     <script src="/js/script.js"></script>
+    <script>
+        // Nuova funzionalità per gestione voli multipli
+        document.addEventListener('DOMContentLoaded', function() {
+            let flightCount = 1;
+            
+            // Aggiungi nuovo volo
+            document.getElementById('add-flight').addEventListener('click', function() {
+                const container = document.getElementById('flights-container');
+                const template = container.querySelector('.flight-section').cloneNode(true);
+                
+                // Aggiorna ID e resetta valori
+                flightCount++;
+                template.id = `flight-${flightCount}`;
+                
+                // Aggiorna header
+                template.querySelector('.flight-header h4').textContent = `Volo #${flightCount}`;
+                
+                // Mostra pulsante rimuovi
+                template.querySelector('.remove-flight').style.display = 'block';
+                
+                // Resetta valori
+                const inputs = template.querySelectorAll('input');
+                inputs.forEach(input => {
+                    if (input.type !== 'hidden') input.value = '';
+                });
+                
+                // Aggiorna ID anteprima logo
+                const logoPreview = template.querySelector('[id^="airline-logo-preview"]');
+                logoPreview.id = `airline-logo-preview-${flightCount}`;
+                logoPreview.style.display = 'none';
+                
+                // Aggiungi gestore evento per rimuovere volo
+                template.querySelector('.remove-flight').addEventListener('click', function() {
+                    if (flightCount > 1) {
+                        template.remove();
+                        flightCount--;
+                    }
+                });
+                
+                // Aggiungi gestore evento per ricerca volo
+                template.querySelector('.fetch-flight').addEventListener('click', fetchFlightData);
+                
+                container.appendChild(template);
+            });
+            
+            // Gestione stesso PNR
+            document.getElementById('samePnr').addEventListener('change', function() {
+                const pnrInputs = document.querySelectorAll('input[name="pnr"]');
+                if (this.checked) {
+                    const firstPnr = pnrInputs[0].value;
+                    pnrInputs.forEach((input, index) => {
+                        if (index > 0) {
+                            input.value = firstPnr;
+                            input.disabled = true;
+                        }
+                    });
+                } else {
+                    pnrInputs.forEach(input => {
+                        input.disabled = false;
+                    });
+                }
+            });
+            
+            // Aggiungi gestore evento per ricerca volo al volo iniziale
+            document.querySelector('.fetch-flight').addEventListener('click', fetchFlightData);
+            
+            // Funzione per recuperare dati volo
+            function fetchFlightData() {
+                const flightSection = this.closest('.flight-section');
+                const flightNumber = flightSection.querySelector('.flight-number').value;
+                const date = flightSection.querySelector('.flight-date').value;
+                
+                if (!flightNumber || !date) {
+                    alert('Inserisci numero volo e data');
+                    return;
+                }
+                
+                fetch(`/fetch-flight?flightNumber=${flightNumber}&date=${date}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data) {
+                            flightSection.querySelector('input[name="route"]').value = data.route;
+                            flightSection.querySelector('input[name="departureTime"]').value = formatDateTimeLocal(data.departureTime);
+                            flightSection.querySelector('input[name="arrivalTime"]').value = formatDateTimeLocal(data.arrivalTime);
+                            flightSection.querySelector('input[name="airlineName"]').value = data.airlineName;
+                            flightSection.querySelector('input[name="airlineCode"]').value = data.airlineCode;
+                            flightSection.querySelector('input[name="logoUrl"]').value = data.logoUrl;
+                            
+                            // Aggiorna anteprima logo
+                            const logoPreview = flightSection.querySelector('[id^="airline-logo-preview"]');
+                            const img = logoPreview.querySelector('img');
+                            img.src = data.logoUrl;
+                            logoPreview.style.display = 'flex';
+                        } else {
+                            alert('Volo non trovato');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Errore nel recupero dati volo');
+                    });
+            }
+            
+            // Formatta data per input datetime-local
+            function formatDateTimeLocal(datetime) {
+                const dt = new Date(datetime);
+                const pad = num => num.toString().padStart(2, '0');
+                return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+            }
+        });
+    </script>
 </body>
 </html>
