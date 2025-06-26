@@ -270,4 +270,4 @@ $RECYCLE.BIN/
 .vscode/settings.json
 demo/.idx/dev.nix
 
-demo/test/*
+demo/target
