@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import com.example.demo.model.Airline;
 import com.example.demo.model.FlightDTO;
 import com.example.demo.model.Passenger;
 import com.example.demo.model.TicketDTO;
@@ -9,29 +8,22 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Controller
 public class TicketController {
 
     private final PdfService pdfService;
-    public final Map<String, Airline> airlines = PdfService.AIRLINES;
 
     public TicketController(PdfService pdfService) {
         this.pdfService = pdfService;
     }
 
     @GetMapping("/")
-    public String showForm(Model model) {
-        model.addAttribute("airlines", airlines.values());
+    public String showForm() {
         return "form";
     }
 

@@ -41,6 +41,15 @@
         .flight-header h4 {
             margin: 0;
         }
+        .input-group-lg > .form-control {
+            height: calc(2.5rem + 2px);
+            padding: 0.5rem 1rem;
+            font-size: 1.1rem;
+        }
+        .input-group-text {
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+        }
     </style>
 </head>
 <body id="airline-theme">
@@ -143,7 +152,7 @@
                                                     <input type="text" class="form-control form-control-lg flight-number" placeholder="Numero volo (es: AZ123)">
                                                     <input type="date" class="form-control form-control-lg flight-date">
                                                     <button type="button" class="btn btn-primary fetch-flight">
-                                                        <i class="fas fa-search"></i>
+                                                        <i class="fas fa-search"></i> Cerca
                                                     </button>
                                                 </div>
                                             </div>
@@ -227,116 +236,5 @@
     
     <!-- Script personalizzato -->
     <script src="/js/script.js"></script>
-    <script>
-        // Nuova funzionalità per gestione voli multipli
-        document.addEventListener('DOMContentLoaded', function() {
-            let flightCount = 1;
-            
-            // Aggiungi nuovo volo
-            document.getElementById('add-flight').addEventListener('click', function() {
-                const container = document.getElementById('flights-container');
-                const template = container.querySelector('.flight-section').cloneNode(true);
-                
-                // Aggiorna ID e resetta valori
-                flightCount++;
-                template.id = `flight-${flightCount}`;
-                
-                // Aggiorna header
-                template.querySelector('.flight-header h4').textContent = `Volo #${flightCount}`;
-                
-                // Mostra pulsante rimuovi
-                template.querySelector('.remove-flight').style.display = 'block';
-                
-                // Resetta valori
-                const inputs = template.querySelectorAll('input');
-                inputs.forEach(input => {
-                    if (input.type !== 'hidden') input.value = '';
-                });
-                
-                // Aggiorna ID anteprima logo
-                const logoPreview = template.querySelector('[id^="airline-logo-preview"]');
-                logoPreview.id = `airline-logo-preview-${flightCount}`;
-                logoPreview.style.display = 'none';
-                
-                // Aggiungi gestore evento per rimuovere volo
-                template.querySelector('.remove-flight').addEventListener('click', function() {
-                    if (flightCount > 1) {
-                        template.remove();
-                        flightCount--;
-                    }
-                });
-                
-                // Aggiungi gestore evento per ricerca volo
-                template.querySelector('.fetch-flight').addEventListener('click', fetchFlightData);
-                
-                container.appendChild(template);
-            });
-            
-            // Gestione stesso PNR
-            document.getElementById('samePnr').addEventListener('change', function() {
-                const pnrInputs = document.querySelectorAll('input[name="pnr"]');
-                if (this.checked) {
-                    const firstPnr = pnrInputs[0].value;
-                    pnrInputs.forEach((input, index) => {
-                        if (index > 0) {
-                            input.value = firstPnr;
-                            input.disabled = true;
-                        }
-                    });
-                } else {
-                    pnrInputs.forEach(input => {
-                        input.disabled = false;
-                    });
-                }
-            });
-            
-            // Aggiungi gestore evento per ricerca volo al volo iniziale
-            document.querySelector('.fetch-flight').addEventListener('click', fetchFlightData);
-            
-            // Funzione per recuperare dati volo
-            function fetchFlightData() {
-                const flightSection = this.closest('.flight-section');
-                const flightNumber = flightSection.querySelector('.flight-number').value;
-                const date = flightSection.querySelector('.flight-date').value;
-                
-                if (!flightNumber || !date) {
-                    alert('Inserisci numero volo e data');
-                    return;
-                }
-                
-                fetch(`/fetch-flight?flightNumber=${flightNumber}&date=${date}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data) {
-                            flightSection.querySelector('input[name="route"]').value = data.route;
-                            flightSection.querySelector('input[name="departureTime"]').value = formatDateTimeLocal(data.departureTime);
-                            flightSection.querySelector('input[name="arrivalTime"]').value = formatDateTimeLocal(data.arrivalTime);
-                            flightSection.querySelector('input[name="airlineName"]').value = data.airlineName;
-                            flightSection.querySelector('input[name="airlineCode"]').value = data.airlineCode;
-                            flightSection.querySelector('input[name="logoUrl"]').value = data.logoUrl;
-                            
-                            // Aggiorna anteprima logo
-                            const logoPreview = flightSection.querySelector('[id^="airline-logo-preview"]');
-                            const img = logoPreview.querySelector('img');
-                            img.src = data.logoUrl;
-                            logoPreview.style.display = 'flex';
-                        } else {
-                            alert('Volo non trovato');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Errore nel recupero dati volo');
-                    });
-            }
-            
-            // Formatta data per input datetime-local
-            function formatDateTimeLocal(datetime) {
-                const dt = new Date(datetime);
-                const pad = num => num.toString().padStart(2, '0');
-                return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-            }
-        });
-    </script>
 </body>
 </html>

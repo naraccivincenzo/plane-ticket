@@ -10,11 +10,11 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
@@ -43,6 +43,9 @@ public class PdfService {
     @Value("${aviationstack.api.key}")
     private String aviationApiKey;
 
+    @Value("${brandfetch.client.id}")
+    private String brandfetchClientId;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     public FlightDTO fetchFlightData(String flightNumber, String date) {
@@ -55,15 +58,13 @@ public class PdfService {
         if (response != null && response.containsKey("data")) {
             List<Map<String, Object>> flights = (List<Map<String, Object>>) response.get("data");
             if (!flights.isEmpty()) {
-                FlightDTO flight = getFlightDTO(flights);
-
-                return flight;
+                return getFlightDTO(flights);
             }
         }
         return null;
     }
 
-    private static FlightDTO getFlightDTO(List<Map<String, Object>> flights) {
+    private FlightDTO getFlightDTO(List<Map<String, Object>> flights) {
         Map<String, Object> flightData = flights.get(0);
         Map<String, String> departure = (Map<String, String>) flightData.get("departure");
         Map<String, String> arrival = (Map<String, String>) flightData.get("arrival");
@@ -75,8 +76,73 @@ public class PdfService {
         flight.setArrivalTime(arrival.get("scheduled").replace("T", " "));
         flight.setAirlineCode(airline.get("iata"));
         flight.setAirlineName(airline.get("name"));
-        flight.setLogoUrl("https://logo.clearbit.com/" + airline.get("name").toLowerCase().replace(" ", "") + ".com");
+        
+        // Use Brandfetch API to get airline logo
+        String airlineName = airline.get("name");
+        if (airlineName != null && !airlineName.isEmpty()) {
+            String logoUrl = getBrandfetchLogoUrl(airlineName);
+            flight.setLogoUrl(logoUrl);
+        } else {
+            flight.setLogoUrl("");
+        }
+        
         return flight;
+    }
+
+    private String getBrandfetchLogoUrl(String airlineName) {
+        try {
+            // Create headers with authorization
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + brandfetchClientId);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            // Create request entity
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            // Make API request to Brandfetch
+            String apiUrl = "https://api.brandfetch.io/v2/brands/search?query=" + 
+                            airlineName.replace(" ", "%20");
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                apiUrl, HttpMethod.GET, entity, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                List<Map<String, Object>> brands = (List<Map<String, Object>>) response.getBody().get("data");
+                if (brands != null && !brands.isEmpty()) {
+                    // Get the first brand
+                    Map<String, Object> brand = brands.get(0);
+                    List<Map<String, Object>> logos = (List<Map<String, Object>>) brand.get("logos");
+                    
+                    if (logos != null && !logos.isEmpty()) {
+                        // Find the main logo (usually the first one)
+                        for (Map<String, Object> logo : logos) {
+                            String type = (String) logo.get("type");
+                            if ("main".equals(type) || "symbol".equals(type)) {
+                                List<Map<String, Object>> formats = (List<Map<String, Object>>) logo.get("formats");
+                                if (formats != null && !formats.isEmpty()) {
+                                    // Get the first format (usually the best quality)
+                                    Map<String, Object> format = formats.get(0);
+                                    return (String) format.get("src");
+                                }
+                            }
+                        }
+                        
+                        // If no main/symbol logo found, use the first available
+                        Map<String, Object> firstLogo = logos.get(0);
+                        List<Map<String, Object>> formats = (List<Map<String, Object>>) firstLogo.get("formats");
+                        if (formats != null && !formats.isEmpty()) {
+                            return (String) formats.get(0).get("src");
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching logo from Brandfetch: " + e.getMessage());
+        }
+        
+        // Fallback to daisycon if Brandfetch fails
+        return "https://daisycon.io/images/airline/?width=150&height=60&iata=" + 
+               airlineName.substring(0, Math.min(2, airlineName.length()));
     }
 
     public byte[] generateTicketPdf(TicketDTO ticket) throws IOException {
@@ -203,8 +269,6 @@ public class PdfService {
                 float rulesY = newPageCreated ? rulesPage.getMediaBox().getHeight() - 50 : finalYPosition;
 
                 // Tabella regole per compagnia
-
-                // Raggruppa regole per compagnia (senza duplicati)
                 Map<String, String> distinctRules = ticket.getFlights().stream()
                         .collect(Collectors.toMap(
                                 FlightDTO::getAirlineName,
@@ -266,9 +330,18 @@ public class PdfService {
 
     private PDImageXObject loadImageFromUrl(PDDocument document, String url) throws IOException {
         try {
-            byte[] imageBytes = restTemplate.getForObject(url, byte[].class);
-            if (imageBytes != null && imageBytes.length > 0) {
-                return PDImageXObject.createFromByteArray(document, imageBytes, url);
+            // Create headers with authorization if needed
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + brandfetchClientId);
+            headers.setAccept(Collections.singletonList(MediaType.IMAGE_PNG));
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, byte[].class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return PDImageXObject.createFromByteArray(document, response.getBody(), url);
             }
         } catch (Exception e) {
             System.err.println("Error loading image from URL: " + url);
@@ -277,20 +350,16 @@ public class PdfService {
     }
 
     private PDImageXObject loadLogo(PDDocument document, String logoName) throws IOException {
-        // Prima prova a caricare dal percorso esterno
         if (logosPath.startsWith("classpath:")) {
-            // Caricamento da classpath (interno al JAR)
             String classpathPath = logosPath.substring(10) + logoName;
             try (InputStream is = new ClassPathResource(classpathPath).getInputStream()) {
                 return PDImageXObject.createFromByteArray(document, is.readAllBytes(), logoName);
             }
         } else {
-            // Caricamento da filesystem esterno
-            File logoFile = new File(logosPath, logoName);
+            java.io.File logoFile = new java.io.File(logosPath, logoName);
             if (logoFile.exists()) {
                 return PDImageXObject.createFromFile(logoFile.getAbsolutePath(), document);
             } else {
-                // Fallback al classpath
                 try (InputStream is = new ClassPathResource("static/logos/" + logoName).getInputStream()) {
                     return PDImageXObject.createFromByteArray(document, is.readAllBytes(), logoName);
                 }
@@ -337,7 +406,6 @@ public class PdfService {
                 float testWidth = getStringWidth(testLine, FONT_NORMAL, 9);
 
                 if (testWidth > maxWidth && currentLine.length() > 0) {
-                    // Draw current line
                     drawText(contentStream, currentLine.toString(), x, y);
                     y -= leading;
                     currentLine = new StringBuilder(word);
@@ -345,14 +413,12 @@ public class PdfService {
                     currentLine = new StringBuilder(testLine);
                 }
 
-                // Draw last word
                 if (i == words.length - 1) {
                     drawText(contentStream, currentLine.toString(), x, y);
                     y -= leading;
                 }
             }
 
-            // Add space between paragraphs
             y -= leading / 2;
         }
         return y;

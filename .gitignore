@@ -267,3 +267,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,eclipse,intellij,java,windows,linux
+.vscode/settings.json
+demo/.idx/dev.nix
