@@ -271,3 +271,14 @@ $RECYCLE.BIN/
 demo/.idx/dev.nix
 
 /demo/target/
+/demo/target/classes/
+/demo/target/config/
+/demo/target/generated-sources/
+/demo/target/generated-test-sources/
+/demo/target/maven-archiver/
+/demo/target/maven-status/
+/demo/target/mia-app/
+/demo/target/surefire-reports/
+/demo/target/test-classes/
+/demo/target/airline-ticket-generator-2.0.0.jar
+/demo/target/airline-ticket-generator-2.0.0.jar.original
