@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generatore Biglietto Aereo</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="/webjars/bootstrap/5.3.0/css/bootstrap.min.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Stili e script personalizzati -->
+    <link rel="stylesheet" href="/css/style.css">
+	<script src="/js/script.js"></script>
+	<script src="/webjars/jquery/3.6.0/jquery.min.js"></script>
+	<script src="/webjars/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+	
+</head>
+<body id="airline-theme">
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card shadow-lg">
+                <div class="card-header">
+                    <h1 class="card-title text-center mb-0">Genera Biglietto Aereo</h1>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/generate-pdf" class="needs-validation" id="ticketForm" novalidate>
+                        <!-- Sezione Passeggeri -->
+                        <div class="mb-4 border p-3 rounded bg-light">
+                            <h3 class="mb-3"><i class="fas fa-users me-2"></i> Passeggeri</h3>
+
+                            <div id="passengers-container">
+                                <!-- Template passeggero -->
+                                <div class="passenger-template border-bottom pb-3 mb-3" id="passenger-0">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Tipo</label>
+                                            <select class="form-select form-select-lg passenger-type" name="passengerType[]" required>
+                                                <option value="adulto">Adulti</option>
+                                                <option value="ragazzo">Ragazzo (12-17)</option>
+                                                <option value="infant">Infant (0-2)</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-5">
+                                            <label class="form-label">Nome e Cognome</label>
+                                            <input type="text" class="form-control form-control-lg" name="passengerName[]" required>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input hand-luggage" type="checkbox" name="handLuggage[]">
+                                                <label class="form-check-label">Bagaglio a mano</label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Dettagli bagaglio a mano -->
+                                        <div class="col-md-4 offset-md-3 hand-luggage-details" style="display: none;">
+                                            <div class="input-group">
+                                                <span class="input-group-text">KG</span>
+                                                <input type="number" class="form-control form-control-lg" name="handLuggageKg[]" min="0" max="20" value="8">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4 offset-md-7">
+                                            <div class="form-check">
+                                                <input class="form-check-input checked-luggage" type="checkbox" name="checkedLuggage[]">
+                                                <label class="form-check-label">Bagaglio in stiva</label>
+                                            </div>
+                                        </div>
+
+                                        <!-- Dettagli bagaglio in stiva -->
+                                        <div class="col-md-8 offset-md-4 checked-luggage-details" style="display: none;">
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">N° bagagli</span>
+                                                        <input type="number" class="form-control form-control-lg" name="checkedLuggageCount[]" min="0" max="5" value="1">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">KG per bagaglio</span>
+                                                        <input type="number" class="form-control form-control-lg" name="checkedLuggageKg[]" min="0" max="50" value="23">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="button" id="add-passenger" class="btn btn-sm btn-outline-primary mt-2">
+                                <i class="fas fa-plus me-1"></i> Aggiungi Passeggero
+                            </button>
+                        </div>
+
+                        <!-- Sezione Voli -->
+                        <div class="mb-4">
+                            <h3 class="mb-3"><i class="fas fa-plane me-2"></i> Voli</h3>
+
+                            <div id="flights-container">
+                                <!-- Template volo -->
+                                <div class="flight-section" id="flight-0">
+                                    <div class="flight-header d-flex justify-content-between align-items-center">
+                                        <h4>Volo #1</h4>
+                                        <button type="button" class="btn btn-sm btn-danger remove-flight">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <!-- Ricerca volo -->
+                                        <div class="col-md-6">
+                                            <label class="form-label">Ricerca Volo</label>
+                                            <div class="input-group mb-3">
+                                                <input type="text" class="form-control form-control-lg flight-number" placeholder="Numero volo (es: AZ123)">
+                                                <input type="date" class="form-control form-control-lg flight-date">
+												<button type="button" class="btn btn-primary fetch-flight">
+												    <i class="fas fa-search"></i> Cerca
+												</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">PNR (Passenger Name Record)</label>
+                                            <input type="text" class="form-control form-control-lg pnr-field" name="pnr[]" required placeholder="Es: ABC123">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Tratta</label>
+                                            <input type="text" class="form-control form-control-lg" name="route[]" required placeholder="Milano MAL - Parigi CDG">
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label">Partenza</label>
+                                            <input type="datetime-local" class="form-control form-control-lg" name="departureTime[]" required>
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label">Arrivo</label>
+                                            <input type="datetime-local" class="form-control form-control-lg" name="arrivalTime[]" required>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label">Compagnia</label>
+                                            <input type="text" class="form-control form-control-lg airline-name" name="airlineName[]" readonly>
+                                            <input type="hidden" name="airlineCode[]">
+                                            <input type="hidden" name="logoUrl[]">
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label">Prezzo (€)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">€</span>
+                                                <input type="number" class="form-control form-control-lg" name="price[]" step="0.01" min="0" required placeholder="150.00">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-4 logo-preview-container" style="display: none;">
+                                            <div class="mt-4">
+                                                <img src="" class="preview-logo img-fluid">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <button type="button" id="add-flight" class="btn btn-outline-primary">
+                                    <i class="fas fa-plus me-1"></i> Aggiungi Volo
+                                </button>
+                            </div>
+
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="samePnr" name="samePnr">
+                                <label class="form-check-label" for="samePnr">
+                                    Tutti i voli hanno lo stesso PNR
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Regole Generiche -->
+                        <div class="mb-4 border p-3 rounded">
+                            <h3 class="mb-3"><i class="fas fa-file-alt me-2"></i> Regole Generiche</h3>
+                            <textarea class="form-control form-control-lg" id="rules" name="rules" rows="6"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-lg w-100 py-3 fw-bold">
+                            <i class="fas fa-file-pdf me-2"></i> Genera PDF
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
