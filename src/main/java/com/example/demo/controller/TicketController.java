@@ -9,7 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
+import org.slf4j.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +17,7 @@ import java.util.List;
 public class TicketController {
 
     private final PdfService pdfService;
+    private static final Logger logger = LoggerFactory.getLogger(TicketController.class);
 
     public TicketController(PdfService pdfService) {
         this.pdfService = pdfService;
@@ -53,13 +54,15 @@ public class TicketController {
             passenger.setType(passengerTypes[i]);
             passenger.setFullName(passengerNames[i]);
 
-            boolean hasHandLuggage = handLuggages != null &&
-                    i < handLuggages.length &&
-                    "on".equals(handLuggages[i]);
+            boolean hasHandLuggage = false;
+            if (handLuggages != null && i < handLuggages.length) {
+                hasHandLuggage = "on".equals(handLuggages[i]);
+            }
 
-            boolean hasCheckedLuggage = checkedLuggages != null &&
-                    i < checkedLuggages.length &&
-                    "on".equals(checkedLuggages[i]);
+            boolean hasCheckedLuggage = false;
+            if (checkedLuggages != null && i < checkedLuggages.length) {
+                hasCheckedLuggage = "on".equals(checkedLuggages[i]);
+            }
 
             passenger.setHandLuggage(hasHandLuggage);
             passenger.setHandLuggageKg(hasHandLuggage ? handLuggageKgs[i] : 0);
@@ -105,11 +108,25 @@ public class TicketController {
                 .body(pdfBytes);
     }
 
+
     @GetMapping("/fetch-flight")
     @ResponseBody
     public FlightDTO fetchFlight(
             @RequestParam("flightNumber") String flightNumber,
             @RequestParam("date") String date) {
-        return pdfService.fetchFlightData(flightNumber, date);
+        
+        // Correzione logging: usa la formattazione corretta
+        logger.info("Richiesta volo: {} per la data {}", flightNumber, date);
+        
+        FlightDTO result = pdfService.fetchFlightData(flightNumber, date);
+        
+        // Correzione logging per il risultato
+        if (result != null) {
+            logger.info("Risultato ricerca trovato: {}", result.getRoute());
+        } else {
+            logger.info("Risultato ricerca: nessun volo trovato");
+        }
+        
+        return result;
     }
 }
