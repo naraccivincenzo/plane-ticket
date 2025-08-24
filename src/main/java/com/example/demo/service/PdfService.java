@@ -93,11 +93,7 @@ public class PdfService {
 	        // Log della risposta completa
 	        logger.debug("Amadeus API Response: {}", responseBody);
 	        
-	        if (response.getStatusCode() != HttpStatus.OK || responseBody == null) {
-	            logger.error("Amadeus API error: {}", response.getStatusCode());
-	            return null;
-	        }
-			if (response.getStatusCode() != HttpStatus.OK || responseBody == null) {
+	       	if (response.getStatusCode() != HttpStatus.OK || responseBody == null) {
 				logger.error("Amadeus API error: {}", response.getStatusCode());
 				return null;
 			}
@@ -105,7 +101,7 @@ public class PdfService {
 			if (responseBody.containsKey("data")) {
 				List<Map<String, Object>> flights = (List<Map<String, Object>>) responseBody.get("data");
 				if (flights != null && !flights.isEmpty()) {
-					return parseAmadeusResponse(flights.get(0));
+					return parseAmadeusResponse(flights.getFirst());
 				}
 			}
 		} catch (Exception e) {

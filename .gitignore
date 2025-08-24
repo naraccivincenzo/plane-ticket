@@ -270,3 +270,4 @@ $RECYCLE.BIN/
 target/
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,eclipse,intellij,java,windows,linux
+/.idea/
